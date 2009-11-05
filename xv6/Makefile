@@ -111,7 +111,7 @@ UPROGS=\
 	_zombie\
 
 fs.img: mkfs README $(UPROGS)
-	./mkfs fs.img README $(UPROGS)
+	./mkfs fs.img 2048 README $(UPROGS)
 
 -include *.d
 
