@@ -96,10 +96,14 @@ main(int argc, char *argv[])
   //fill drive with zeros
   for(i = 0; i < nblocks + usedblocks; i++)
     wsect(i, zeroes);
-
+ 
   //write superblock to block 1
-  wsect(1, &sb);
+  char sbbuffer[BSIZE];
+  for (i = 0; i < BSIZE; i++) sbbuffer[i] = 0;
+  memcpy(&sbbuffer, &sb, sizeof(uint)*3);
 
+  wsect(1, &sbbuffer);
+  
   //write root directory inode
   rootino = ialloc(T_DIR);
   assert(rootino == 1);
@@ -158,7 +162,6 @@ main(int argc, char *argv[])
   exit(0);
 }
 
-//write block
 void
 wsect(uint sec, void *buf)
 {
@@ -166,7 +169,11 @@ wsect(uint sec, void *buf)
     perror("lseek");
     exit(1);
   }
-  if(write(fsfd, buf, BSIZE) != BSIZE){
+  uint byteswritten = write(fsfd, buf, BSIZE);
+
+  //if(write(fsfd, buf, BSIZE) != BSIZE){
+//  printf("Bytes written: %d to sector %d\n", byteswritten, sec);
+  if (byteswritten != BSIZE){
     perror("write");
     exit(1);
   }

@@ -25,15 +25,78 @@
 #define min(a, b) ((a) < (b) ? (a) : (b))
 static void itrunc(struct inode*);
 
+struct buflist {
+  struct buf* blist[NBUF];
+};
+
+void printsector(unsigned char *data)
+{
+    int i = 0;
+    for (i = 0; i < 16; i++)
+    {
+		int j = 0;
+		for ( j = 0; j < 32; j++)
+		{
+			cprintf("%x ", data[i*32+j]);
+		}
+		cprintf("\n");
+    }
+
+};
+
+void fsbread(uint dev, uint block, char *buffer, uint blocksize, struct buflist *lockedlist)
+{
+  //sectors per block. May be 1 to 1. blocksize should always be power of 2
+  uint secperblock = blocksize / DISK_SECTOR_SIZE;
+  uint firstsector = block * secperblock;
+  //loop and bread it.
+  cprintf("Reading block: %d, which starts at sector: %d and is %d sectors big\n", block, firstsector, secperblock);
+  int i = 0;
+  for (i = 0; i < secperblock; i++)
+  {
+    struct buf *currentbuf= bread(dev, firstsector + i);
+    lockedlist->blist[i] = currentbuf;
+    memmove(buffer+(i*DISK_SECTOR_SIZE), currentbuf->data, DISK_SECTOR_SIZE);
+  };
+}
+
+void
+fsbwrite(char *buffer, uint blocksize, struct buflist *buffers)
+{
+  int secperblock = blocksize / DISK_SECTOR_SIZE;
+  int i = 0;
+  for (i = 0; i < secperblock; i++)
+  {
+     memmove(buffers->blist[i]->data, buffer+(i*DISK_SECTOR_SIZE), DISK_SECTOR_SIZE);
+     bwrite(buffers->blist[i]);
+  }
+}
+
+void fsbrelease(struct buflist *buffers, uint blocksize)
+{
+  int secperblock = blocksize / DISK_SECTOR_SIZE;
+  int i = 0;
+  //release in reverse order, in case of deadlock
+  for (i = secperblock - 1; i >= 0; i--)
+  {
+    brelse(buffers->blist[i]);
+  }
+}
+
 // Read the super block.
 static void
 readsb(int dev, struct superblock *sb)
 {
-  struct buf *bp;
+ /* struct buf *bp;
   
-  bp = bread(dev, 1);
-  memmove(sb, bp->data, sizeof(*sb));
-  brelse(bp);
+  bp = bread(dev, 1);*/
+  char buffer[BSIZE];
+  struct buflist bl;
+  fsbread(dev, 1, buffer, BSIZE, &bl);
+  //memmove(sb, bp->data, sizeof(*sb));
+  memmove(sb, buffer, sizeof(struct superblock));
+  //brelse(bp);
+  fsbrelease(&bl, BSIZE);
 }
 
 // Zero a block.
@@ -193,7 +256,7 @@ ilock(struct inode *ip)
 {
   struct buf *bp;
   struct dinode *dip;
-
+  
   if(ip == 0 || ip->ref < 1)
     panic("ilock");
 
@@ -215,7 +278,9 @@ ilock(struct inode *ip)
     brelse(bp);
     ip->flags |= I_VALID;
     if(ip->type == 0)
+    {
       panic("ilock: no type");
+    }
   }
 }
 
@@ -272,6 +337,7 @@ ialloc(uint dev, short type)
   struct superblock sb;
 
   readsb(dev, &sb);
+   cprintf("Superblock inodes: %d\n", sb.ninodes);
   for(inum = 1; inum < sb.ninodes; inum++){  // loop over inode blocks
     bp = bread(dev, IBLOCK(inum));
     dip = (struct dinode*)bp->data + inum%IPB;
