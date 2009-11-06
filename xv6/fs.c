@@ -29,6 +29,14 @@ struct buflist {
   struct buf* blist[NBUF];
 };
 
+//returns count of bytes needed to allocate a buffer.
+uint getallocsize(uint buffersize)
+{
+  uint pagesneeded = buffersize / PAGE; //in param.h
+  if ((buffersize % PAGE) > 0)  pagesneeded++;
+  return pagesneeded * PAGE;
+}
+
 void printsector(unsigned char *data)
 {
     int i = 0;
@@ -47,6 +55,7 @@ void printsector(unsigned char *data)
 void fsbread(uint dev, uint block, uchar *buffer, uint blocksize, struct buflist *lockedlist)
 {
   //sectors per block. May be 1 to 1. blocksize should always be power of 2
+ // cprintf("\t\tcp:%d read start block: %d\n", cp->pid, block);
   uint secperblock = blocksize / DISK_SECTOR_SIZE;
   uint firstsector = block * secperblock;
   //loop and bread it.
@@ -58,11 +67,13 @@ void fsbread(uint dev, uint block, uchar *buffer, uint blocksize, struct buflist
     lockedlist->blist[i] = currentbuf;
     memmove(buffer+(i*DISK_SECTOR_SIZE), currentbuf->data, DISK_SECTOR_SIZE);
   };
+//  cprintf("\t\tcp:%d read stop block: %d\n", cp->pid, block);
 }
 
 void
 fsbwrite(uchar *buffer, uint blocksize, struct buflist *buffers)
 {
+ // cprintf("\t\tcp:%d write start sector: %d\n", cp->pid, buffers->blist[0]->sector);
   int secperblock = blocksize / DISK_SECTOR_SIZE;
   int i = 0;
   for (i = 0; i < secperblock; i++)
@@ -70,10 +81,12 @@ fsbwrite(uchar *buffer, uint blocksize, struct buflist *buffers)
      memmove(buffers->blist[i]->data, buffer+(i*DISK_SECTOR_SIZE), DISK_SECTOR_SIZE);
      bwrite(buffers->blist[i]);
   }
+ //cprintf("\t\tcp:%d write stop\n", cp->pid);
 }
 
-void fsbrelease(struct buflist *buffers, uint blocksize)
+void fsbrelease(uchar *buffer, struct buflist *buffers, uint blocksize)
 {
+  //cprintf("\t\tcp:%d letgo start sector: %d\n", cp->pid, buffers->blist[0]->sector);  
   int secperblock = blocksize / DISK_SECTOR_SIZE;
   int i = 0;
   //release in reverse order, in case of deadlock
@@ -81,6 +94,7 @@ void fsbrelease(struct buflist *buffers, uint blocksize)
   {
     brelse(buffers->blist[i]);
   }
+//  cprintf("\t\tcp:%d letgo end\n", cp->pid);
 }
 
 // Read the super block.
@@ -90,13 +104,14 @@ readsb(int dev, struct superblock *sb)
  /* struct buf *bp;
   
   bp = bread(dev, 1);*/
-  uchar buffer[BSIZE];
+  uchar *buffer = (uchar*)kalloc(getallocsize(BSIZE));
   struct buflist bl;
   fsbread(dev, 1, buffer, BSIZE, &bl);
   //memmove(sb, bp->data, sizeof(*sb));
   memmove(sb, buffer, sizeof(struct superblock));
   //brelse(bp);
-  fsbrelease(&bl, BSIZE);
+  fsbrelease(buffer, &bl, BSIZE);
+  kfree((char*)buffer, getallocsize(BSIZE));
 }
 
 // Zero a block.
@@ -110,12 +125,13 @@ bzero(int dev, int bno)
   bwrite(bp);
   brelse(bp);*/
 
-  uchar buffer[BSIZE];
+  uchar *buffer = (uchar*)kalloc(getallocsize(BSIZE));
   struct buflist bl;
   fsbread(dev, bno, buffer, BSIZE, &bl);
   memset(buffer, 0, BSIZE);
   fsbwrite(buffer, BSIZE, &bl);
-  fsbrelease(&bl, BSIZE);
+  fsbrelease(buffer, &bl, BSIZE);
+  kfree((char*)buffer, getallocsize(BSIZE));
 }
 
 // Blocks. 
@@ -146,7 +162,7 @@ balloc(uint dev)
   int b, bi, m;
   struct superblock sb;
   struct buflist bl;
-  uchar buffer[BSIZE];
+  uchar *buffer = (uchar*)kalloc(getallocsize(BSIZE));
 
   readsb(dev, &sb);
   for( b = 0; b < sb.size; b+= BPB)
@@ -159,11 +175,12 @@ balloc(uint dev)
       {
         buffer[bi/8] |= m; //Mark block in use on disk.
         fsbwrite(buffer, BSIZE, &bl);
-        fsbrelease(&bl, BSIZE);
+        fsbrelease(buffer, &bl, BSIZE);
+        kfree((char*)buffer, getallocsize(BSIZE));
         return b + bi;
       }
     }
-    fsbrelease(&bl, BSIZE);
+    fsbrelease(buffer, &bl, BSIZE);
   }
   panic("balloc: out of blocks");
 }
@@ -188,7 +205,7 @@ bfree(int dev, uint b)
   bwrite(bp);
   brelse(bp);
 */
-  uchar buffer[BSIZE];
+  uchar *buffer = (uchar*)kalloc(getallocsize(BSIZE));
   struct buflist bl;
   struct superblock sb;
   int bi, m;
@@ -201,7 +218,8 @@ bfree(int dev, uint b)
     panic("freeing free block");
   buffer[bi/8] &= ~m;
   fsbwrite(buffer, BSIZE, &bl);
-  fsbrelease(&bl, BSIZE);
+  fsbrelease(buffer, &bl, BSIZE);
+  kfree((char*)buffer, getallocsize(BSIZE));
 }
 
 // Inodes.
@@ -299,7 +317,7 @@ void
 ilock(struct inode *ip)
 {
   //struct buf *bp;
-  uchar buffer[BSIZE];
+  uchar *buffer = (uchar*)kalloc(getallocsize(BSIZE));
   struct buflist bl;
   struct dinode *dip;
   
@@ -324,13 +342,14 @@ ilock(struct inode *ip)
     ip->size = dip->size;
     memmove(ip->addrs, dip->addrs, sizeof(ip->addrs));
     //brelse(bp);
-    fsbrelease(&bl, BSIZE);
+    fsbrelease(buffer, &bl, BSIZE);
     ip->flags |= I_VALID;
     if(ip->type == 0)
     {
       panic("ilock: no type");
     }
   }
+  kfree((char*)buffer, getallocsize(BSIZE));
 }
 
 // Unlock the given inode.
@@ -382,7 +401,7 @@ ialloc(uint dev, short type)
 {
   int inum;
   //struct buf *bp;
-  uchar buffer[BSIZE];
+  uchar *buffer = (uchar*)kalloc(getallocsize(BSIZE));
   struct buflist bl;
   struct dinode *dip;
   struct superblock sb;
@@ -400,11 +419,12 @@ ialloc(uint dev, short type)
       //bwrite(bp);   // mark it allocated on the disk
       //brelse(bp);
       fsbwrite(buffer, BSIZE, &bl);
-      fsbrelease(&bl, BSIZE);
+      fsbrelease(buffer, &bl, BSIZE);
+      kfree((char*)buffer, getallocsize(BSIZE));
       return iget(dev, inum);
     }
     //brelse(bp);
-    fsbrelease(&bl, BSIZE);
+    fsbrelease(buffer, &bl, BSIZE);
   }
   panic("ialloc: no inodes");
 }
@@ -414,7 +434,7 @@ void
 iupdate(struct inode *ip)
 {
   //struct buf *bp;
-  uchar buffer[BSIZE];
+  uchar *buffer = (uchar*)kalloc(getallocsize(BSIZE));
   struct buflist bl;
   struct dinode *dip;
 
@@ -431,7 +451,8 @@ iupdate(struct inode *ip)
   //bwrite(bp);
   //brelse(bp);
   fsbwrite(buffer, BSIZE, &bl);
-  fsbrelease(&bl, BSIZE);
+  fsbrelease(buffer, &bl, BSIZE);
+  kfree((char*)buffer, getallocsize(BSIZE));
 }
 
 // Inode contents
@@ -448,15 +469,18 @@ bmap(struct inode *ip, uint bn, int alloc)
 {
   uint addr, *a;
   //struct buf *bp;
-  uchar buffer[BSIZE];
+  uchar *buffer = (uchar*)kalloc(getallocsize(BSIZE));
   struct buflist bl;
 
   if(bn < NDIRECT){
     if((addr = ip->addrs[bn]) == 0){
-      if(!alloc)
+      if(!alloc){
+        kfree((char*)buffer, getallocsize(BSIZE));
         return -1;
+      }
       ip->addrs[bn] = addr = balloc(ip->dev);
     }
+    kfree((char*)buffer, getallocsize(BSIZE));
     return addr;
   }
   bn -= NDIRECT;
@@ -464,8 +488,10 @@ bmap(struct inode *ip, uint bn, int alloc)
   if(bn < NINDIRECT){
     // Load indirect block, allocating if necessary.
     if((addr = ip->addrs[INDIRECT]) == 0){
-      if(!alloc)
+      if(!alloc){
+        kfree((char*)buffer, getallocsize(BSIZE));
         return -1;
+      }
       ip->addrs[INDIRECT] = addr = balloc(ip->dev);
     }
     //bp = bread(ip->dev, addr);
@@ -476,7 +502,8 @@ bmap(struct inode *ip, uint bn, int alloc)
     if((addr = a[bn]) == 0){
       if(!alloc){
         //brelse(bp);
-        fsbrelease(&bl, BSIZE);
+        fsbrelease(buffer, &bl, BSIZE);
+        kfree((char*)buffer, getallocsize(BSIZE));
         return -1;
       }
       a[bn] = addr = balloc(ip->dev);
@@ -484,7 +511,8 @@ bmap(struct inode *ip, uint bn, int alloc)
       fsbwrite(buffer, BSIZE, &bl);
     }
     //brelse(bp);
-    fsbrelease(&bl, BSIZE);
+    fsbrelease(buffer, &bl, BSIZE);
+    kfree((char*)buffer, getallocsize(BSIZE));
     return addr;
   }
 
@@ -497,7 +525,7 @@ itrunc(struct inode *ip)
 {
   int i, j;
   //struct buf *bp;
-  uchar buffer[BSIZE];
+  uchar *buffer = (uchar*)kalloc(getallocsize(BSIZE));
   struct buflist bl;
   uint *a;
 
@@ -518,12 +546,13 @@ itrunc(struct inode *ip)
         bfree(ip->dev, a[j]);
     }
     //brelse(bp);
-    fsbrelease(&bl, BSIZE);
+    fsbrelease(buffer, &bl, BSIZE);
     ip->addrs[INDIRECT] = 0;
   }
 
   ip->size = 0;
   iupdate(ip);
+  kfree((char*)buffer, getallocsize(BSIZE));
 }
 
 // Copy stat information from inode.
@@ -542,17 +571,22 @@ int
 readi(struct inode *ip, char *dst, uint off, uint n)
 {
   uint tot, m;
-  uchar buffer[BSIZE];
+  uchar *buffer = (uchar*)kalloc(getallocsize(BSIZE));
   struct buflist bl;
 
   if(ip->type == T_DEV){
-    if(ip->major < 0 || ip->major >= NDEV || !devsw[ip->major].read)
+    if(ip->major < 0 || ip->major >= NDEV || !devsw[ip->major].read){
+      kfree((char*)buffer, getallocsize(BSIZE));
       return -1;
+    }
+    kfree((char*)buffer, getallocsize(BSIZE));
     return devsw[ip->major].read(ip, dst, n);
   }
 
-  if(off > ip->size || off + n < off)
+  if(off > ip->size || off + n < off){
+    kfree((char*)buffer, getallocsize(BSIZE));
     return -1;
+  }
   if(off + n > ip->size)
     n = ip->size - off;
 
@@ -563,8 +597,9 @@ readi(struct inode *ip, char *dst, uint off, uint n)
     //memmove(dst, bp->data + off%BSIZE, m);
     memmove(dst, buffer + off%BSIZE, m);
     //brelse(bp);
-    fsbrelease(&bl, BSIZE);
+    fsbrelease(buffer, &bl, BSIZE);
   }
+  kfree((char*)buffer, getallocsize(BSIZE));
   return n;
 }
 
@@ -574,17 +609,22 @@ writei(struct inode *ip, char *src, uint off, uint n)
 {
   uint tot, m;
   //struct buf *bp;
-  uchar buffer[BSIZE];
+  uchar *buffer = (uchar*)kalloc(getallocsize(BSIZE));
   struct buflist bl;
 
   if(ip->type == T_DEV){
-    if(ip->major < 0 || ip->major >= NDEV || !devsw[ip->major].write)
+    if(ip->major < 0 || ip->major >= NDEV || !devsw[ip->major].write){
+      kfree((char*)buffer, getallocsize(BSIZE));
       return -1;
+    }
+    kfree((char*)buffer, getallocsize(BSIZE));
     return devsw[ip->major].write(ip, src, n);
   }
 
-  if(off + n < off)
+  if(off + n < off){
+    kfree((char*)buffer, getallocsize(BSIZE));
     return -1;
+  }
   if(off + n > MAXFILE*BSIZE)
     n = MAXFILE*BSIZE - off;
 
@@ -597,13 +637,14 @@ writei(struct inode *ip, char *src, uint off, uint n)
     //bwrite(bp);
     //brelse(bp);
     fsbwrite(buffer, BSIZE, &bl);
-    fsbrelease(&bl, BSIZE);
+    fsbrelease(buffer, &bl, BSIZE);
   }
 
   if(n > 0 && off > ip->size){
     ip->size = off;
     iupdate(ip);
   }
+  kfree((char*)buffer, getallocsize(BSIZE));
   return n;
 }
 
@@ -623,7 +664,7 @@ dirlookup(struct inode *dp, char *name, uint *poff)
 {
   uint off, inum;
   //struct buf *bp;
-  uchar buffer[BSIZE];
+  uchar *buffer = (uchar*)kalloc(getallocsize(BSIZE));
   struct buflist bl;
 
   struct dirent *de;
@@ -648,13 +689,15 @@ dirlookup(struct inode *dp, char *name, uint *poff)
           *poff = off + (uchar*)de - buffer; //bp->data;
         inum = de->inum;
         //brelse(bp);
-        fsbrelease(&bl, BSIZE);
+        fsbrelease(buffer, &bl, BSIZE);
+        kfree((char*)buffer, getallocsize(BSIZE));
         return iget(dp->dev, inum);
       }
     }
     //brelse(bp);
-    fsbrelease(&bl, BSIZE);
+    fsbrelease(buffer, &bl, BSIZE);
   }
+  kfree((char*)buffer, getallocsize(BSIZE));
   return 0;
 }
 

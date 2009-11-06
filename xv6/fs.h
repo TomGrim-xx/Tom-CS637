@@ -34,6 +34,7 @@ struct dinode {
 #define T_FILE 2   // File
 #define T_DEV  3   // Special device
 
+
 // Inodes per block.
 #define IPB           (BSIZE / sizeof(struct dinode))
 
