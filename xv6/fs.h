@@ -5,7 +5,7 @@
 // Block 1 is super block.
 // Inodes start at block 2.
 
-#define BSIZE 512  // block size
+#define BSIZE 4096  // block size
 
 // File system super block
 struct superblock {

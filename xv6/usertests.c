@@ -433,6 +433,7 @@ twofiles(void)
       exit();
     }
   }
+  
   close(fd);
   if(pid)
     wait();

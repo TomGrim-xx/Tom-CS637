@@ -44,13 +44,13 @@ void printsector(unsigned char *data)
 
 };
 
-void fsbread(uint dev, uint block, char *buffer, uint blocksize, struct buflist *lockedlist)
+void fsbread(uint dev, uint block, uchar *buffer, uint blocksize, struct buflist *lockedlist)
 {
   //sectors per block. May be 1 to 1. blocksize should always be power of 2
   uint secperblock = blocksize / DISK_SECTOR_SIZE;
   uint firstsector = block * secperblock;
   //loop and bread it.
-  cprintf("Reading block: %d, which starts at sector: %d and is %d sectors big\n", block, firstsector, secperblock);
+ // cprintf("Reading block: %d, which starts at sector: %d and is %d sectors big\n", block, firstsector, secperblock);
   int i = 0;
   for (i = 0; i < secperblock; i++)
   {
@@ -61,7 +61,7 @@ void fsbread(uint dev, uint block, char *buffer, uint blocksize, struct buflist 
 }
 
 void
-fsbwrite(char *buffer, uint blocksize, struct buflist *buffers)
+fsbwrite(uchar *buffer, uint blocksize, struct buflist *buffers)
 {
   int secperblock = blocksize / DISK_SECTOR_SIZE;
   int i = 0;
@@ -90,7 +90,7 @@ readsb(int dev, struct superblock *sb)
  /* struct buf *bp;
   
   bp = bread(dev, 1);*/
-  char buffer[BSIZE];
+  uchar buffer[BSIZE];
   struct buflist bl;
   fsbread(dev, 1, buffer, BSIZE, &bl);
   //memmove(sb, bp->data, sizeof(*sb));
@@ -103,12 +103,19 @@ readsb(int dev, struct superblock *sb)
 static void
 bzero(int dev, int bno)
 {
-  struct buf *bp;
+  /*struct buf *bp;
   
   bp = bread(dev, bno);
   memset(bp->data, 0, BSIZE);
   bwrite(bp);
-  brelse(bp);
+  brelse(bp);*/
+
+  uchar buffer[BSIZE];
+  struct buflist bl;
+  fsbread(dev, bno, buffer, BSIZE, &bl);
+  memset(buffer, 0, BSIZE);
+  fsbwrite(buffer, BSIZE, &bl);
+  fsbrelease(&bl, BSIZE);
 }
 
 // Blocks. 
@@ -117,7 +124,7 @@ bzero(int dev, int bno)
 static uint
 balloc(uint dev)
 {
-  int b, bi, m;
+/*  int b, bi, m;
   struct buf *bp;
   struct superblock sb;
 
@@ -135,6 +142,28 @@ balloc(uint dev)
       }
     }
     brelse(bp);
+  }*/
+  int b, bi, m;
+  struct superblock sb;
+  struct buflist bl;
+  uchar buffer[BSIZE];
+
+  readsb(dev, &sb);
+  for( b = 0; b < sb.size; b+= BPB)
+  {
+    fsbread(dev, BBLOCK(b, sb.ninodes), buffer, BSIZE, &bl);
+    for( bi = 0; bi < BPB; bi++)
+    {
+      m = 1 << (bi % 8);          //calculate offset bit for free map
+      if ((buffer[bi/8] & m) == 0) //Is block free?
+      {
+        buffer[bi/8] |= m; //Mark block in use on disk.
+        fsbwrite(buffer, BSIZE, &bl);
+        fsbrelease(&bl, BSIZE);
+        return b + bi;
+      }
+    }
+    fsbrelease(&bl, BSIZE);
   }
   panic("balloc: out of blocks");
 }
@@ -143,7 +172,7 @@ balloc(uint dev)
 static void
 bfree(int dev, uint b)
 {
-  struct buf *bp;
+ /* struct buf *bp;
   struct superblock sb;
   int bi, m;
 
@@ -158,6 +187,21 @@ bfree(int dev, uint b)
   bp->data[bi/8] &= ~m;  // Mark block free on disk.
   bwrite(bp);
   brelse(bp);
+*/
+  uchar buffer[BSIZE];
+  struct buflist bl;
+  struct superblock sb;
+  int bi, m;
+  bzero(dev, b);
+  readsb(dev, &sb);
+  fsbread(dev, BBLOCK(b, sb.ninodes), buffer, BSIZE, &bl);
+  bi = b % BPB;
+  m = 1 << (bi % 8);
+  if ((buffer[bi/8] & m) == 0)
+    panic("freeing free block");
+  buffer[bi/8] &= ~m;
+  fsbwrite(buffer, BSIZE, &bl);
+  fsbrelease(&bl, BSIZE);
 }
 
 // Inodes.
@@ -254,7 +298,9 @@ idup(struct inode *ip)
 void
 ilock(struct inode *ip)
 {
-  struct buf *bp;
+  //struct buf *bp;
+  uchar buffer[BSIZE];
+  struct buflist bl;
   struct dinode *dip;
   
   if(ip == 0 || ip->ref < 1)
@@ -267,15 +313,18 @@ ilock(struct inode *ip)
   release(&icache.lock);
 
   if(!(ip->flags & I_VALID)){
-    bp = bread(ip->dev, IBLOCK(ip->inum));
-    dip = (struct dinode*)bp->data + ip->inum%IPB;
+    //bp = bread(ip->dev, IBLOCK(ip->inum));
+    //dip = (struct dinode*)bp->data + ip->inum%IPB;
+    fsbread(ip->dev, IBLOCK(ip->inum), buffer, BSIZE, &bl);
+    dip = (struct dinode*)buffer + ip->inum%IPB;
     ip->type = dip->type;
     ip->major = dip->major;
     ip->minor = dip->minor;
     ip->nlink = dip->nlink;
     ip->size = dip->size;
     memmove(ip->addrs, dip->addrs, sizeof(ip->addrs));
-    brelse(bp);
+    //brelse(bp);
+    fsbrelease(&bl, BSIZE);
     ip->flags |= I_VALID;
     if(ip->type == 0)
     {
@@ -332,23 +381,30 @@ struct inode*
 ialloc(uint dev, short type)
 {
   int inum;
-  struct buf *bp;
+  //struct buf *bp;
+  uchar buffer[BSIZE];
+  struct buflist bl;
   struct dinode *dip;
   struct superblock sb;
 
   readsb(dev, &sb);
-   cprintf("Superblock inodes: %d\n", sb.ninodes);
+  // cprintf("Superblock inodes: %d\n", sb.ninodes); //DEBUG
   for(inum = 1; inum < sb.ninodes; inum++){  // loop over inode blocks
-    bp = bread(dev, IBLOCK(inum));
-    dip = (struct dinode*)bp->data + inum%IPB;
+    //bp = bread(dev, IBLOCK(inum));
+    //dip = (struct dinode*)bp->data + inum%IPB;
+    fsbread(dev, IBLOCK(inum), buffer, BSIZE, &bl);
+    dip = (struct dinode*)buffer + inum%IPB;
     if(dip->type == 0){  // a free inode
       memset(dip, 0, sizeof(*dip));
-      dip->type = type;
-      bwrite(bp);   // mark it allocated on the disk
-      brelse(bp);
+      dip->type = type;      
+      //bwrite(bp);   // mark it allocated on the disk
+      //brelse(bp);
+      fsbwrite(buffer, BSIZE, &bl);
+      fsbrelease(&bl, BSIZE);
       return iget(dev, inum);
     }
-    brelse(bp);
+    //brelse(bp);
+    fsbrelease(&bl, BSIZE);
   }
   panic("ialloc: no inodes");
 }
@@ -357,19 +413,25 @@ ialloc(uint dev, short type)
 void
 iupdate(struct inode *ip)
 {
-  struct buf *bp;
+  //struct buf *bp;
+  uchar buffer[BSIZE];
+  struct buflist bl;
   struct dinode *dip;
 
-  bp = bread(ip->dev, IBLOCK(ip->inum));
-  dip = (struct dinode*)bp->data + ip->inum%IPB;
+  //bp = bread(ip->dev, IBLOCK(ip->inum));
+  fsbread(ip->dev, IBLOCK(ip->inum), buffer, BSIZE, &bl);
+  //dip = (struct dinode*)bp->data + ip->inum%IPB;
+  dip = (struct dinode*)buffer+ ip->inum%IPB;
   dip->type = ip->type;
   dip->major = ip->major;
   dip->minor = ip->minor;
   dip->nlink = ip->nlink;
   dip->size = ip->size;
   memmove(dip->addrs, ip->addrs, sizeof(ip->addrs));
-  bwrite(bp);
-  brelse(bp);
+  //bwrite(bp);
+  //brelse(bp);
+  fsbwrite(buffer, BSIZE, &bl);
+  fsbrelease(&bl, BSIZE);
 }
 
 // Inode contents
@@ -385,7 +447,9 @@ static uint
 bmap(struct inode *ip, uint bn, int alloc)
 {
   uint addr, *a;
-  struct buf *bp;
+  //struct buf *bp;
+  uchar buffer[BSIZE];
+  struct buflist bl;
 
   if(bn < NDIRECT){
     if((addr = ip->addrs[bn]) == 0){
@@ -404,18 +468,23 @@ bmap(struct inode *ip, uint bn, int alloc)
         return -1;
       ip->addrs[INDIRECT] = addr = balloc(ip->dev);
     }
-    bp = bread(ip->dev, addr);
-    a = (uint*)bp->data;
+    //bp = bread(ip->dev, addr);
+    fsbread(ip->dev, addr, buffer, BSIZE, &bl);
+    //a = (uint*)bp->data;
+    a = (uint*)buffer;
   
     if((addr = a[bn]) == 0){
       if(!alloc){
-        brelse(bp);
+        //brelse(bp);
+        fsbrelease(&bl, BSIZE);
         return -1;
       }
       a[bn] = addr = balloc(ip->dev);
-      bwrite(bp);
+      //bwrite(bp);
+      fsbwrite(buffer, BSIZE, &bl);
     }
-    brelse(bp);
+    //brelse(bp);
+    fsbrelease(&bl, BSIZE);
     return addr;
   }
 
@@ -427,7 +496,9 @@ static void
 itrunc(struct inode *ip)
 {
   int i, j;
-  struct buf *bp;
+  //struct buf *bp;
+  uchar buffer[BSIZE];
+  struct buflist bl;
   uint *a;
 
   for(i = 0; i < NDIRECT; i++){
@@ -438,13 +509,16 @@ itrunc(struct inode *ip)
   }
   
   if(ip->addrs[INDIRECT]){
-    bp = bread(ip->dev, ip->addrs[INDIRECT]);
-    a = (uint*)bp->data;
+    fsbread(ip->dev, ip->addrs[INDIRECT], buffer, BSIZE, &bl);
+    //bp = bread(ip->dev, ip->addrs[INDIRECT]);
+    //a = (uint*)bp->data;
+    a = (uint*)buffer;
     for(j = 0; j < NINDIRECT; j++){
       if(a[j])
         bfree(ip->dev, a[j]);
     }
-    brelse(bp);
+    //brelse(bp);
+    fsbrelease(&bl, BSIZE);
     ip->addrs[INDIRECT] = 0;
   }
 
@@ -468,7 +542,8 @@ int
 readi(struct inode *ip, char *dst, uint off, uint n)
 {
   uint tot, m;
-  struct buf *bp;
+  uchar buffer[BSIZE];
+  struct buflist bl;
 
   if(ip->type == T_DEV){
     if(ip->major < 0 || ip->major >= NDEV || !devsw[ip->major].read)
@@ -482,10 +557,13 @@ readi(struct inode *ip, char *dst, uint off, uint n)
     n = ip->size - off;
 
   for(tot=0; tot<n; tot+=m, off+=m, dst+=m){
-    bp = bread(ip->dev, bmap(ip, off/BSIZE, 0));
+    //bp = bread(ip->dev, bmap(ip, off/BSIZE, 0));
+    fsbread(ip->dev, bmap(ip, off/BSIZE, 0), buffer, BSIZE, &bl);
     m = min(n - tot, BSIZE - off%BSIZE);
-    memmove(dst, bp->data + off%BSIZE, m);
-    brelse(bp);
+    //memmove(dst, bp->data + off%BSIZE, m);
+    memmove(dst, buffer + off%BSIZE, m);
+    //brelse(bp);
+    fsbrelease(&bl, BSIZE);
   }
   return n;
 }
@@ -495,7 +573,9 @@ int
 writei(struct inode *ip, char *src, uint off, uint n)
 {
   uint tot, m;
-  struct buf *bp;
+  //struct buf *bp;
+  uchar buffer[BSIZE];
+  struct buflist bl;
 
   if(ip->type == T_DEV){
     if(ip->major < 0 || ip->major >= NDEV || !devsw[ip->major].write)
@@ -509,11 +589,15 @@ writei(struct inode *ip, char *src, uint off, uint n)
     n = MAXFILE*BSIZE - off;
 
   for(tot=0; tot<n; tot+=m, off+=m, src+=m){
-    bp = bread(ip->dev, bmap(ip, off/BSIZE, 1));
+    //bp = bread(ip->dev, bmap(ip, off/BSIZE, 1));
+    fsbread(ip->dev, bmap(ip, off/BSIZE, 1), buffer, BSIZE, &bl);
     m = min(n - tot, BSIZE - off%BSIZE);
-    memmove(bp->data + off%BSIZE, src, m);
-    bwrite(bp);
-    brelse(bp);
+   // memmove(bp->data + off%BSIZE, src, m);
+    memmove(buffer + off%BSIZE, src, m);
+    //bwrite(bp);
+    //brelse(bp);
+    fsbwrite(buffer, BSIZE, &bl);
+    fsbrelease(&bl, BSIZE);
   }
 
   if(n > 0 && off > ip->size){
@@ -538,29 +622,38 @@ struct inode*
 dirlookup(struct inode *dp, char *name, uint *poff)
 {
   uint off, inum;
-  struct buf *bp;
+  //struct buf *bp;
+  uchar buffer[BSIZE];
+  struct buflist bl;
+
   struct dirent *de;
 
   if(dp->type != T_DIR)
     panic("dirlookup not DIR");
 
   for(off = 0; off < dp->size; off += BSIZE){
-    bp = bread(dp->dev, bmap(dp, off / BSIZE, 0));
-    for(de = (struct dirent*)bp->data;
-        de < (struct dirent*)(bp->data + BSIZE);
+    //bp = bread(dp->dev, bmap(dp, off / BSIZE, 0));
+    fsbread(dp->dev, bmap(dp, off/BSIZE, 0), buffer, BSIZE, &bl);
+    //for(de = (struct dirent*)bp->data;
+    //    de < (struct dirent*)(bp->data + BSIZE);
+    //    de++){
+    for(de = (struct dirent*)buffer;
+        de < (struct dirent*)(buffer+BSIZE);
         de++){
       if(de->inum == 0)
         continue;
       if(namecmp(name, de->name) == 0){
         // entry matches path element
         if(poff)
-          *poff = off + (uchar*)de - bp->data;
+          *poff = off + (uchar*)de - buffer; //bp->data;
         inum = de->inum;
-        brelse(bp);
+        //brelse(bp);
+        fsbrelease(&bl, BSIZE);
         return iget(dp->dev, inum);
       }
     }
-    brelse(bp);
+    //brelse(bp);
+    fsbrelease(&bl, BSIZE);
   }
   return 0;
 }
