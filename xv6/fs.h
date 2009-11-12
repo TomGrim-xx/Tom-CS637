@@ -5,13 +5,14 @@
 // Block 1 is super block.
 // Inodes start at block 2.
 
-#define BSIZE 4096  // block size
+#define BSIZE 1024  // block size
 
 // File system super block
 struct superblock {
   uint size;         // Size of file system image (blocks)
   uint nblocks;      // Number of data blocks
   uint ninodes;      // Number of inodes.
+  uint blocksize;    // Bytes per block.
 };
 
 #define NDIRECT 12

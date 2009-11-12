@@ -10,10 +10,11 @@
 int nblocks = 995;   //number of data blocks
 int ninodes = 200;   //number of inodes
 int size = 1024;  //number of blocks on disk
+int blocksize = 512; //bytes per block
 
 int fsfd;
 struct superblock sb;   // superblock
-char zeroes[BSIZE];
+char * zeroes;
 uint freeblock;   //next available block for data
 uint usedblocks;  //total used blocks
 uint bitblocks;   //number of bitmap blocks
@@ -56,7 +57,7 @@ main(int argc, char *argv[])
   int i, cc, fd;
   uint rootino, inum, off;
   struct dirent de;
-  char buf[BSIZE];
+  char buf[blocksize];
   struct dinode din;
 
   if(argc < 2){
@@ -64,17 +65,21 @@ main(int argc, char *argv[])
     exit(1);
   }
 
-  //A block is evenly divided into inodes or directory entries.
-  assert((BSIZE % sizeof(struct dinode)) == 0);
-  assert((BSIZE % sizeof(struct dirent)) == 0);
-
   fsfd = open(argv[1], O_RDWR|O_CREAT|O_TRUNC, 0666);
   if(fsfd < 0){
     perror(argv[1]);
     exit(1);
   }
 
-  size = atoi(argv[2]);
+  blocksize = atoi(argv[2]);
+
+  zeroes = malloc(blocksize);
+
+  //A block is evenly divided into inodes or directory entries.
+  assert((blocksize % sizeof(struct dinode)) == 0);
+  assert((blocksize % sizeof(struct dirent)) == 0);
+
+  size = atoi(argv[3]);
   
   bitblocks = size / BPB + 1; 
   usedblocks = ninodes / IPB + 3 + bitblocks;
@@ -98,8 +103,8 @@ main(int argc, char *argv[])
     wsect(i, zeroes);
  
   //write superblock to block 1
-  char sbbuffer[BSIZE];
-  for (i = 0; i < BSIZE; i++) sbbuffer[i] = 0;
+  char sbbuffer[blocksize];
+  for (i = 0; i < blocksize; i++) sbbuffer[i] = 0;
   memcpy(&sbbuffer, &sb, sizeof(uint)*3);
 
   wsect(1, &sbbuffer);
@@ -119,7 +124,7 @@ main(int argc, char *argv[])
   strcpy(de.name, "..");
   iappend(rootino, &de, sizeof(de));
 
-  for(i = 3; i < argc; i++){
+  for(i = 4; i < argc; i++){
     assert(index(argv[i], '/') == 0);
 
     if((fd = open(argv[i], 0)) < 0){
@@ -153,7 +158,7 @@ main(int argc, char *argv[])
   // fix size of root inode dir
   rinode(rootino, &din);
   off = xint(din.size);
-  off = ((off/BSIZE) + 1) * BSIZE;
+  off = ((off/blocksize) + 1) * blocksize;
   din.size = xint(off);
   winode(rootino, &din);
 
@@ -165,15 +170,15 @@ main(int argc, char *argv[])
 void
 wsect(uint sec, void *buf)
 {
-  if(lseek(fsfd, sec * (long)BSIZE, 0) != sec * (long)BSIZE){
+  if(lseek(fsfd, sec * (long)blocksize, 0) != sec * (long)blocksize){
     perror("lseek");
     exit(1);
   }
-  uint byteswritten = write(fsfd, buf, BSIZE);
+  uint byteswritten = write(fsfd, buf, blocksize);
 
-  //if(write(fsfd, buf, BSIZE) != BSIZE){
+  //if(write(fsfd, buf, blocksize) != blocksize){
 //  printf("Bytes written: %d to sector %d\n", byteswritten, sec);
-  if (byteswritten != BSIZE){
+  if (byteswritten != blocksize){
     perror("write");
     exit(1);
   }
@@ -189,7 +194,7 @@ i2b(uint inum)
 void
 winode(uint inum, struct dinode *ip)
 {
-  char buf[BSIZE];
+  char buf[blocksize];
   uint bn;
   struct dinode *dip;
 
@@ -204,7 +209,7 @@ winode(uint inum, struct dinode *ip)
 void
 rinode(uint inum, struct dinode *ip)
 {
-  char buf[BSIZE];
+  char buf[blocksize];
   uint bn;
   struct dinode *dip;
 
@@ -218,11 +223,11 @@ rinode(uint inum, struct dinode *ip)
 void
 rsect(uint sec, void *buf)
 {
-  if(lseek(fsfd, sec * (long)BSIZE, 0) != sec * (long)BSIZE){
+  if(lseek(fsfd, sec * (long)blocksize, 0) != sec * (long)blocksize){
     perror("lseek");
     exit(1);
   }
-  if(read(fsfd, buf, BSIZE) != BSIZE){
+  if(read(fsfd, buf, blocksize) != blocksize){
     perror("read");
     exit(1);
   }
@@ -247,12 +252,12 @@ ialloc(ushort type)
 void
 balloc(int used)
 {
-  uchar buf[BSIZE];
+  uchar buf[blocksize];
   int i;
 
   printf("balloc: first %d blocks have been allocated\n", used);
   assert(used < bitblocks * BPB);   //do not exceed space for bitmap
-  bzero(buf, BSIZE);
+  bzero(buf, blocksize);
   for(i = 0; i < used; i++) {
     buf[i/8] = buf[i/8] | (0x1 << (i%8));
   }
@@ -269,7 +274,7 @@ iappend(uint inum, void *xp, int n)
   char *p = (char*) xp;
   uint fbn, off, n1;
   struct dinode din;
-  char buf[BSIZE];
+  char buf[blocksize];
   uint indirect[NINDIRECT];
   uint x;
 
@@ -277,7 +282,7 @@ iappend(uint inum, void *xp, int n)
 
   off = xint(din.size); //byte offset within file (start at the end)
   while(n > 0){
-    fbn = off / BSIZE;  //block offset within file
+    fbn = off / blocksize;  //block offset within file
     assert(fbn < MAXFILE);
     if(fbn < NDIRECT) {
       if(xint(din.addrs[fbn]) == 0) {
@@ -300,10 +305,10 @@ iappend(uint inum, void *xp, int n)
       }
       x = xint(indirect[fbn-NDIRECT]);
     }
-    n1 = min(n, (fbn + 1) * BSIZE - off);
+    n1 = min(n, (fbn + 1) * blocksize - off);
     assert(x < size);
     rsect(x, buf);
-    bcopy(p, buf + off - (fbn * BSIZE), n1);
+    bcopy(p, buf + off - (fbn * blocksize), n1);
     wsect(x, buf);
     n -= n1;
     off += n1;

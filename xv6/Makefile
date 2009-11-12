@@ -111,7 +111,7 @@ UPROGS=\
 	_zombie\
 
 fs.img: mkfs README $(UPROGS)
-	./mkfs fs.img 256 README $(UPROGS)
+	./mkfs fs.img 1024 1024 README $(UPROGS)
 
 -include *.d
 
@@ -137,5 +137,5 @@ bochs : fs.img xv6.img
 	bochs -q
 
 qemu: fs.img xv6.img
-	qemu -parallel stdio -std-vga -hdb fs.img xv6.img
+	qemu -parallel stdio -hdb fs.img xv6.img
 
