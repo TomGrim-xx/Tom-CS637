@@ -1231,6 +1231,26 @@ forktest(void)
   printf(1, "fork test OK\n");
 }
 
+void
+create2000files()
+{
+  int n, fd;
+  char buffer[5];
+  
+  for (n = 0; n < 5000; n++){
+    buffer[0]= n / 1000 + 48;
+    buffer[1] =  (n % 1000)/100 + 48;
+    buffer[2] = ((n%1000)%100/10)+48;
+    buffer[3] = (((n%1000)%100)%10) + 48;
+    buffer[4] = '\0';
+    printf(1, "Writing file %s\n", buffer);
+    fd = open(buffer, O_CREATE);
+    write(fd, buffer, 4);
+    close(fd);
+  }
+};
+
+
 int
 main(int argc, char *argv[])
 {
@@ -1242,8 +1262,10 @@ main(int argc, char *argv[])
   }
   close(open("usertests.ran", O_CREATE));
 
- // opentest();
- // writetest();
+  create2000files();
+  exit();
+  opentest();
+  writetest();
   writetest1();
   createtest();
 

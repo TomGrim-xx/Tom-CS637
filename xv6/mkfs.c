@@ -102,7 +102,7 @@ main(int argc, char *argv[])
   sb.ninodes = xint(ninodes);
 
     printf("used %d (bit %d ninode %lu) free %u total %d\n", usedblocks,
-         bitblocks, ninodes/IPB + 1, freeblock, nblocks+usedblocks);
+         bitblocks, ninodes, freeblock, nblocks+usedblocks);
 
   //data + metadata = whole disk
   assert(nblocks + usedblocks == size);

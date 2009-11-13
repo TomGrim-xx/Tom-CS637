@@ -55,7 +55,7 @@ void printsector(unsigned char *data)
 void fsbread(uint dev, uint block, uchar *buffer, uint blocksize, struct buflist *lockedlist)
 {
   //sectors per block. May be 1 to 1. blocksize should always be power of 2
-  cprintf("cp:%d read start block: %d\n", cp->pid, block);
+  //cprintf("cp:%d read start block: %d\n", cp->pid, block);
   uint secperblock = blocksize / DISK_SECTOR_SIZE;
   uint firstsector = block * secperblock;
   //loop and bread it.
@@ -73,7 +73,7 @@ void fsbread(uint dev, uint block, uchar *buffer, uint blocksize, struct buflist
 void
 fsbwrite(uchar *buffer, uint blocksize, struct buflist *buffers)
 {
-  cprintf("\t\tcp:%d write start sector: %d\n", cp->pid, buffers->blist[0]->sector);
+  //cprintf("cp:%d write start block: %d\n", cp->pid, blocksize/buffers->blist[0]->sector);
   int secperblock = blocksize / DISK_SECTOR_SIZE;
   int i = 0;
   for (i = 0; i < secperblock; i++)
@@ -408,7 +408,7 @@ ialloc(uint dev, short type)
   struct superblock sb;
 
   readsb(dev, &sb);
-   cprintf("Superblock inodes: %d\n", sb.ninodes); //DEBUG
+  // cprintf("Superblock inodes: %d\n", sb.ninodes); //DEBUG
   for(inum = 1; inum < sb.ninodes; inum++){  // loop over inode blocks
     //bp = bread(dev, IBLOCK(inum));
     //dip = (struct dinode*)bp->data + inum%IPB;
@@ -514,7 +514,6 @@ bmap(struct inode *ip, uint bn, int alloc)
     //brelse(bp);
     fsbrelease(buffer, &bl, BSIZE);
     kfree((char*)buffer, getallocsize(BSIZE));
-	cprintf("Bmap: %d\n", addr);
     return addr;
   }
 
