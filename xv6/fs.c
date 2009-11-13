@@ -176,34 +176,35 @@ bzero(int dev, int bno)
 
 // Allocate a disk block.
 static uint
-balloc(uint dev)
+balloc(uint dev, uint inodecg)
 {
-/*  int b, bi, m;
-  struct buf *bp;
-  struct superblock sb;
 
-  bp = 0;
-  readsb(dev, &sb);
-  for(b = 0; b < sb.size; b += BPB){
-    bp = bread(dev, BBLOCK(b, sb.ninodes));
-    for(bi = 0; bi < BPB; bi++){
-      m = 1 << (bi % 8);
-      if((bp->data[bi/8] & m) == 0){  // Is block free?
-        bp->data[bi/8] |= m;  // Mark block in use on disk.
-        bwrite(bp);
-        brelse(bp);
-        return b + bi;
-      }
-    }
-    brelse(bp);
-  }*/
   int b, bi, m;
   struct superblock sb;
   struct buflist bl;
   uchar *buffer = (uchar*)kalloc(getallocsize(BSIZE));
 
+  //prefer the Cylinder Group that the inode of the file is in...
   readsb(dev, &sb);
-  for( b = 0; b < sb.size; b+= BPB)
+  int cg = inodecg/IPCG; //get the cylinder group that we want to use 
+  for( b = cg * CGSIZE; b < sb.size; b+= BPB)
+  {
+    fsbread(dev, BBLOCK(b), buffer, BSIZE, &bl);
+    for( bi = 0; bi < BPB; bi++)
+    {
+      m = 1 << (bi % 8);          //calculate offset bit for free map
+      if ((buffer[bi/8] & m) == 0) //Is block free?
+      {
+        buffer[bi/8] |= m; //Mark block in use on disk.
+        fsbwrite(buffer, BSIZE, &bl);
+        fsbrelease(buffer, &bl, BSIZE);
+        kfree((char*)buffer, getallocsize(BSIZE));
+        return b + bi;
+      }
+    }
+    fsbrelease(buffer, &bl, BSIZE);
+  }
+  for( b = 0; b < cg*CGSIZE; b+= BPB)
   {
     fsbread(dev, BBLOCK(b), buffer, BSIZE, &bl);
     for( bi = 0; bi < BPB; bi++)
@@ -226,30 +227,15 @@ balloc(uint dev)
 // Free a disk block.
 static void
 bfree(int dev, uint b)
-{
- /* struct buf *bp;
-  struct superblock sb;
-  int bi, m;
-
-  bzero(dev, b);
-
-  readsb(dev, &sb);
-  bp = bread(dev, BBLOCK(b, sb.ninodes));
-  bi = b % BPB;
-  m = 1 << (bi % 8);
-  if((bp->data[bi/8] & m) == 0)
-    panic("freeing free block");
-  bp->data[bi/8] &= ~m;  // Mark block free on disk.
-  bwrite(bp);
-  brelse(bp);
-*/
+{ 
+  //cprintf("Freeing data block: %d\n", b);
   uchar *buffer = (uchar*)kalloc(getallocsize(BSIZE));
   struct buflist bl;
   struct superblock sb;
   int bi, m;
   bzero(dev, b);
   readsb(dev, &sb);
-  fsbread(dev, BBLOCK(b), buffer, BSIZE, &bl);
+  fsbread(dev, BBLOCK(b), buffer, BSIZE, &bl); 
   bi = b % BPB;
   m = 1 << (bi % 8);
   if ((buffer[bi/8] & m) == 0)
@@ -576,7 +562,7 @@ bmap(struct inode *ip, uint bn, int alloc)
         kfree((char*)buffer, getallocsize(BSIZE));
         return -1;
       }
-      ip->addrs[bn] = addr = balloc(ip->dev);
+      ip->addrs[bn] = addr = balloc(ip->dev, ip->inum);
     }
     kfree((char*)buffer, getallocsize(BSIZE));
     return addr;
@@ -590,7 +576,7 @@ bmap(struct inode *ip, uint bn, int alloc)
         kfree((char*)buffer, getallocsize(BSIZE));
         return -1;
       }
-      ip->addrs[INDIRECT] = addr = balloc(ip->dev);
+      ip->addrs[INDIRECT] = addr = balloc(ip->dev, ip->inum);
     }
     //bp = bread(ip->dev, addr);
     fsbread(ip->dev, addr, buffer, BSIZE, &bl);
@@ -604,7 +590,7 @@ bmap(struct inode *ip, uint bn, int alloc)
         kfree((char*)buffer, getallocsize(BSIZE));
         return -1;
       }
-      a[bn] = addr = balloc(ip->dev);
+      a[bn] = addr = balloc(ip->dev, ip->inum);
       //bwrite(bp);
       fsbwrite(buffer, BSIZE, &bl);
     }
