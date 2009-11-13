@@ -29,6 +29,15 @@ struct buflist {
   struct buf* blist[NBUF];
 };
 
+struct cylinderstats{
+  uint usedinodes;
+  uint dircount;
+};
+
+struct cylinderstats cylstats[32]; //ugly, but can be done away with later.....
+uint   cgcount = 0;
+
+
 //returns count of bytes needed to allocate a buffer.
 uint getallocsize(uint buffersize)
 {
@@ -103,7 +112,7 @@ readsb(int dev, struct superblock *sb)
 {
  /* struct buf *bp;
   
-  bp = bread(dev, 1);*/
+  bp = bread(dev, 1);*/  
   uchar *buffer = (uchar*)kalloc(getallocsize(BSIZE));
   struct buflist bl;
   fsbread(dev, 1, buffer, BSIZE, &bl);
@@ -111,7 +120,36 @@ readsb(int dev, struct superblock *sb)
   memmove(sb, buffer, sizeof(struct superblock));
   //brelse(bp);
   fsbrelease(buffer, &bl, BSIZE);
-  kfree((char*)buffer, getallocsize(BSIZE));
+  kfree((char*)buffer, getallocsize(BSIZE));  
+}
+
+
+void fs_init()
+{
+  int inum;
+  struct dinode *ip;
+  struct superblock sb;
+  uchar *buffer = (uchar*)kalloc(getallocsize(BSIZE));
+  struct buflist bl;
+
+  readsb(ROOTDEV, &sb);
+  cgcount = sb.nblocks / CGSIZE + (((sb.nblocks % CGSIZE) > 0) ? 1 : 0);
+
+  for(inum = 0; inum < sb.ninodes; inum += IPB){
+    fsbread(ROOTDEV, IBLOCK(inum), buffer, BSIZE, &bl);
+    int inumblock;
+    for(inumblock = 0; inumblock < IPB; inumblock++)
+    {
+      ip = (struct dinode*)buffer + inumblock;
+      if(ip->type != 0){  // a free inode
+        int cg = inum / IPCG;
+        cylstats[cg].usedinodes++;
+        if (ip->type == T_DIR)
+          cylstats[cg].dircount++;
+      };    
+    }
+    fsbrelease(buffer, &bl, BSIZE);
+  }
 }
 
 // Zero a block.
@@ -398,9 +436,10 @@ iunlockput(struct inode *ip)
 
 // Allocate a new inode with the given type on device dev.
 struct inode*
-ialloc(uint dev, short type)
+ialloc(uint dev, short type, uint parent) //TOM - UPDATE here.
 {
   int inum;
+  if (cgcount == 0) fs_init();
   //struct buf *bp;
   uchar *buffer = (uchar*)kalloc(getallocsize(BSIZE));
   struct buflist bl;
@@ -409,7 +448,35 @@ ialloc(uint dev, short type)
 
   readsb(dev, &sb);
   // cprintf("Superblock inodes: %d\n", sb.ninodes); //DEBUG
-  for(inum = 1; inum < sb.ninodes; inum++){  // loop over inode blocks
+  uint bestgroup = 0;
+  if (type == T_DIR)
+  {
+   //select an inode from the "best cylinder group" based on average number of free inodes
+   int i = 0;
+   int totalused = 0;
+   int lowestdir = -1;
+   for (i = 0; i < cgcount; i++)
+   {
+      totalused += cylstats[i].usedinodes;
+   };
+   float averageusedinodes = totalused / cgcount;
+   for (i = 0; i < cgcount; i++)
+   {
+      if (cylstats[i].usedinodes < averageusedinodes)
+      {         
+         if ((lowestdir == -1) || (cylstats[i].dircount < cylstats[lowestdir].dircount)) lowestdir = i;
+      }
+   };
+   if (lowestdir == -1) lowestdir = 0;
+   bestgroup = lowestdir;
+  }
+  else //type is not T_DIR
+  {
+     bestgroup = parent/IPCG;
+  }
+  int start = bestgroup * IPCG;
+  if (start == 0) start++;
+  for(inum = start; inum < sb.ninodes; inum++){  // loop over inode, prefering our local group.
     //bp = bread(dev, IBLOCK(inum));
     //dip = (struct dinode*)bp->data + inum%IPB;
     fsbread(dev, IBLOCK(inum), buffer, BSIZE, &bl);
@@ -422,11 +489,41 @@ ialloc(uint dev, short type)
       fsbwrite(buffer, BSIZE, &bl);
       fsbrelease(buffer, &bl, BSIZE);
       kfree((char*)buffer, getallocsize(BSIZE));
+      if (type == T_DIR) //update stats
+      { 
+          cylstats[inum/IPCG].dircount++;
+      }
+      cylstats[inum/IPCG].usedinodes++;
       return iget(dev, inum);
     }
     //brelse(bp);
     fsbrelease(buffer, &bl, BSIZE);
   }
+  //backup plan. check everything else.
+  for(inum = 1; inum < start; inum++){  
+    //bp = bread(dev, IBLOCK(inum));
+    //dip = (struct dinode*)bp->data + inum%IPB;
+    fsbread(dev, IBLOCK(inum), buffer, BSIZE, &bl);
+    dip = (struct dinode*)buffer + inum%IPB;
+    if(dip->type == 0){  // a free inode
+      memset(dip, 0, sizeof(*dip));
+      dip->type = type;
+      //bwrite(bp);   // mark it allocated on the disk
+      //brelse(bp);
+      fsbwrite(buffer, BSIZE, &bl);
+      fsbrelease(buffer, &bl, BSIZE);
+      kfree((char*)buffer, getallocsize(BSIZE));
+      if (type == T_DIR)
+      {
+          cylstats[inum/IPCG].dircount++;
+      }
+      cylstats[inum/IPCG].usedinodes++;
+      return iget(dev, inum);
+    }
+    //brelse(bp);
+    fsbrelease(buffer, &bl, BSIZE);
+  }
+  
   panic("ialloc: no inodes");
 }
 

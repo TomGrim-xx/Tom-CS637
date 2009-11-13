@@ -30,11 +30,12 @@ void            fileinit(void);
 int             fileread(struct file*, char*, int n);
 int             filestat(struct file*, struct stat*);
 int             filewrite(struct file*, char*, int n);
+void            fs_init();
 
 // fs.c
 int             dirlink(struct inode*, char*, uint);
 struct inode*   dirlookup(struct inode*, char*, uint*);
-struct inode*   ialloc(uint, short);
+struct inode*   ialloc(uint, short, uint);
 struct inode*   idup(struct inode*);
 void            iinit(void);
 void            ilock(struct inode*);

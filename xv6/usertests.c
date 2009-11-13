@@ -1236,16 +1236,34 @@ create2000files()
 {
   int n, fd;
   char buffer[5];
-  
-  for (n = 0; n < 5000; n++){
+  char buffer2[5];
+  buffer2[4] = '\0';
+
+  for (n = 0; n < 2000; n++){
     buffer[0]= n / 1000 + 48;
     buffer[1] =  (n % 1000)/100 + 48;
     buffer[2] = ((n%1000)%100/10)+48;
     buffer[3] = (((n%1000)%100)%10) + 48;
     buffer[4] = '\0';
     printf(1, "Writing file %s\n", buffer);
-    fd = open(buffer, O_CREATE);
+    fd = open(buffer, O_CREATE|O_RDWR);
     write(fd, buffer, 4);
+    close(fd);
+  }
+
+  for (n = 0; n < 2000; n++){
+    buffer[0]= n / 1000 + 48;
+    buffer[1] =  (n % 1000)/100 + 48;
+    buffer[2] = ((n%1000)%100/10)+48;
+    buffer[3] = (((n%1000)%100)%10) + 48;
+    buffer[4] = '\0';
+    printf(1, "Writing file %s\n", buffer);
+    fd = open(buffer, O_RDONLY);
+    int count = read(fd, buffer2, 4);
+    if (count != 5){
+      printf(1, "Read %s instead of %s\n", buffer2, buffer);
+      exit();
+    }    
     close(fd);
   }
 };
@@ -1262,8 +1280,8 @@ main(int argc, char *argv[])
   }
   close(open("usertests.ran", O_CREATE));
 
-  create2000files();
-  exit();
+ // create2000files();
+  
   opentest();
   writetest();
   writetest1();

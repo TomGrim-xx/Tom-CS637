@@ -227,7 +227,7 @@ create(char *path, int canexist, short type, short major, short minor)
     return ip;
   }
 
-  if((ip = ialloc(dp->dev, type)) == 0){
+  if((ip = ialloc(dp->dev, type, dp->inum)) == 0){
     iunlockput(dp);
     return 0;
   }
