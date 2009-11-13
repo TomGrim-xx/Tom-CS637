@@ -1242,8 +1242,8 @@ main(int argc, char *argv[])
   }
   close(open("usertests.ran", O_CREATE));
 
-  opentest();
-  writetest();
+ // opentest();
+ // writetest();
   writetest1();
   createtest();
 

@@ -53,12 +53,12 @@ struct dinode {
 
 
 // Block containing inode i - find the correct cylinder group and the offset into it.
-#define IBLOCK(i) ( (i/IBPCG)*CGSIZE + 2 + (i % IBPCG))
+#define IBLOCK(i) ( (i/IPCG)*CGSIZE + 2 + (i % IPCG)/IPB)
 
 // Block containing bit for block b
 //#define BBLOCK(b, ninodes) (b/BPB + (ninodes)/IPB + 3)
 //Get the correct cylinder group, then offset in it.
-#define BBLOCK(b, ninodes) ((b/CGSIZE)*CGSIZE + IBPCG+2) //superblock offset, plus the first 
+#define BBLOCK(b) ((b/CGSIZE)*CGSIZE + IBPCG+2) //superblock offset, plus the first
 
 
 // Directory is a file containing a sequence of dirent structures.

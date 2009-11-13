@@ -19,7 +19,7 @@ char * zeroes;
 uint freeblock;   //next available block for data
 uint usedblocks;  //total used blocks
 uint bitblocks;   //number of bitmap blocks
-uint freeinode = 1;  
+uint freeinode = 1; 
 
 void balloc(int);
 void wsect(uint, void*);
@@ -85,13 +85,17 @@ main(int argc, char *argv[])
   cylindercount = size / CGSIZE;
   if ((size % CGSIZE) > 0) cylindercount++;
   printf("Cyclinder count: %u\n", cylindercount);
+
+  //calculate number of inodes
+  ninodes = cylindercount * IPCG;
   
-  bitblocks = size / BPB + 1; 
-  usedblocks = ninodes / IPB + 3 + bitblocks;
-  freeblock = usedblocks;
+  bitblocks = cylindercount; //1 bitblock per cylinder
+  usedblocks = ninodes / IPB + cylindercount + bitblocks + 1;
+  freeblock = BBLOCK(0)+1; //the first free is after the first bitmap block.
 
   //remaining blocks are data blocks
   nblocks = size - usedblocks;
+
 
   sb.size = xint(size);
   sb.nblocks = xint(nblocks); // so whole disk is size sectors
@@ -105,18 +109,28 @@ main(int argc, char *argv[])
 
   //fill drive with zeros
   for(i = 0; i < size; i++)
-    wsect(i, zeroes);
+    write(fsfd, zeroes, BSIZE);
+    //wsect(i, zeroes);
+  
  
   //write superblock to block 1
   char sbbuffer[blocksize];
   for (i = 0; i < blocksize; i++) sbbuffer[i] = 0;
   memcpy(&sbbuffer, &sb, sizeof(uint)*3);
 
-//this needs to loop for each cylinder group.
+   
+  //this needs to loop for each cylinder group.
   for (i = 0; i < cylindercount; i++)
   {
+     wsect(BBLOCK(i*CGSIZE), zeroes); //zero out bitmap block
      wsect(i*CGSIZE + 1, &sbbuffer);
+     int j = 0;
+     //printf("Inodes per cyclinder group: %d. Current group: %d\n", IBPCG, i);
+     for (j = 0; j < IBPCG; j++){ //mark the inodes as used.        
+         wsect(i*CGSIZE + 2 + j, zeroes);
+     }
   }
+  wsect(0, zeroes);
   
   //write root directory inode
   rootino = ialloc(T_DIR);
@@ -171,7 +185,7 @@ main(int argc, char *argv[])
   din.size = xint(off);
   winode(rootino, &din);
 
-  balloc(usedblocks);
+  //balloc(1);
 
   exit(0);
 }
@@ -184,9 +198,25 @@ wsect(uint sec, void *buf)
     exit(1);
   }
   uint byteswritten = write(fsfd, buf, blocksize);
+  char bitdata[BSIZE];
+ // printf("Updated sector %d. Updating bitmap: %d\n", sec, BBLOCK(sec));
+  
+  rsect(BBLOCK(sec), bitdata);
+  uint secoffset = sec % CGSIZE;
+   //update bit block
+  bitdata[secoffset/8] = bitdata[secoffset/8] | (0x1 << (secoffset%8));
+  
 
-  //if(write(fsfd, buf, blocksize) != blocksize){
-//  printf("Bytes written: %d to sector %d\n", byteswritten, sec);
+  if(lseek(fsfd, BBLOCK(sec) * (long)blocksize, 0) != BBLOCK(sec) * (long)blocksize){
+    perror("lseek");
+    exit(1);
+  }
+  uint bitdatawritten = write(fsfd, bitdata, blocksize);
+  if (bitdatawritten != blocksize){
+    perror("write - bitdata");
+    exit(1);
+  }
+
   if (byteswritten != blocksize){
     perror("write");
     exit(1);
@@ -195,8 +225,8 @@ wsect(uint sec, void *buf)
 
 uint
 i2b(uint inum)
-{
-  return (inum / IPB) + 2;
+{ 
+  return IBLOCK(inum);
 }
 
 //write inode
@@ -271,7 +301,7 @@ balloc(int used)
     buf[i/8] = buf[i/8] | (0x1 << (i%8));
   }
   printf("balloc: write bitmap block at sector %lu\n", ninodes/IPB + 3);
-  wsect(ninodes / IPB + 3, buf);
+  wsect(0, buf);
 }
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
