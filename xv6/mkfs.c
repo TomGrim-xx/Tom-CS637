@@ -7,10 +7,11 @@
 #include "types.h"
 #include "fs.h"
 
-int nblocks = 995;   //number of data blocks
-int ninodes = 200;   //number of inodes
-int size = 1024;  //number of blocks on disk
-int blocksize = 512; //bytes per block
+int nblocks = 0;   //number of data blocks
+int ninodes = 0;   //number of inodes
+int size = 0;  //number of blocks on disk
+int cylindercount = 0; //number of cylinders we have
+int blocksize = BSIZE; //bytes per block
 
 int fsfd;
 struct superblock sb;   // superblock
@@ -71,7 +72,7 @@ main(int argc, char *argv[])
     exit(1);
   }
 
-  blocksize = atoi(argv[2]);
+  blocksize = BSIZE; 
 
   zeroes = malloc(blocksize);
 
@@ -79,7 +80,11 @@ main(int argc, char *argv[])
   assert((blocksize % sizeof(struct dinode)) == 0);
   assert((blocksize % sizeof(struct dirent)) == 0);
 
-  size = atoi(argv[3]);
+  size = atoi(argv[2]) * 1024 * 1024; //argument is megabytes.
+  size = size / blocksize;
+  cylindercount = size / CGSIZE;
+  if ((size % CGSIZE) > 0) cylindercount++;
+  printf("Cyclinder count: %u\n", cylindercount);
   
   bitblocks = size / BPB + 1; 
   usedblocks = ninodes / IPB + 3 + bitblocks;
@@ -99,7 +104,7 @@ main(int argc, char *argv[])
   assert(nblocks + usedblocks == size);
 
   //fill drive with zeros
-  for(i = 0; i < nblocks + usedblocks; i++)
+  for(i = 0; i < size; i++)
     wsect(i, zeroes);
  
   //write superblock to block 1
@@ -107,7 +112,11 @@ main(int argc, char *argv[])
   for (i = 0; i < blocksize; i++) sbbuffer[i] = 0;
   memcpy(&sbbuffer, &sb, sizeof(uint)*3);
 
-  wsect(1, &sbbuffer);
+//this needs to loop for each cylinder group.
+  for (i = 0; i < cylindercount; i++)
+  {
+     wsect(i*CGSIZE + 1, &sbbuffer);
+  }
   
   //write root directory inode
   rootino = ialloc(T_DIR);
@@ -124,7 +133,7 @@ main(int argc, char *argv[])
   strcpy(de.name, "..");
   iappend(rootino, &de, sizeof(de));
 
-  for(i = 4; i < argc; i++){
+  for(i = 3; i < argc; i++){
     assert(index(argv[i], '/') == 0);
 
     if((fd = open(argv[i], 0)) < 0){

@@ -39,14 +39,27 @@ struct dinode {
 // Inodes per block.
 #define IPB           (BSIZE / sizeof(struct dinode))
 
-// Block containing inode i
-#define IBLOCK(i)     ((i) / IPB + 2)
-
 // Bitmap bits per block
 #define BPB           (BSIZE*8)
 
+//Cylinder Group Size (in blocks)
+#define CGSIZE (BPB)
+
+//Inodes per Cylinder Group
+#define IPCG (CGSIZE * BSIZE / 2048)
+
+//Inode blocks per Cylinder Group
+#define IBPCG (IPCG/IPB)
+
+
+// Block containing inode i - find the correct cylinder group and the offset into it.
+#define IBLOCK(i) ( (i/IBPCG)*CGSIZE + 2 + (i % IBPCG))
+
 // Block containing bit for block b
-#define BBLOCK(b, ninodes) (b/BPB + (ninodes)/IPB + 3)
+//#define BBLOCK(b, ninodes) (b/BPB + (ninodes)/IPB + 3)
+//Get the correct cylinder group, then offset in it.
+#define BBLOCK(b, ninodes) ((b/CGSIZE)*CGSIZE + IBPCG+2) //superblock offset, plus the first 
+
 
 // Directory is a file containing a sequence of dirent structures.
 #define DIRSIZ 14
