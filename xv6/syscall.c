@@ -96,7 +96,7 @@ extern int sys_sleep(void);
 extern int sys_unlink(void);
 extern int sys_wait(void);
 extern int sys_write(void);
-extern int sys_knife(void);
+extern int sys_clone(void);
 
 static int (*syscalls[])(void) = {
 [SYS_chdir]   sys_chdir,
@@ -119,7 +119,7 @@ static int (*syscalls[])(void) = {
 [SYS_unlink]  sys_unlink,
 [SYS_wait]    sys_wait,
 [SYS_write]   sys_write,
-[SYS_knife]   sys_knife
+[SYS_clone]   sys_clone
 };
 
 void

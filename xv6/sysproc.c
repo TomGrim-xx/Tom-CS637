@@ -18,12 +18,17 @@ sys_fork(void)
 }
 
 int
-sys_knife(void)
+sys_clone(void)
 {
   int pid;
   struct proc *np;
 
-  if((np = copyproc(cp)) == 0)
+  void * child_stack;
+  int (*fn)(void*);
+  argptr(1, (char**)&fn, 0);
+  argptr(1, (char**)&child_stack, PAGE);
+
+  if((np = clone(cp, fn, child_stack)) == 0)
     return -1;
   pid = np->pid;
   np->state = RUNNABLE;
@@ -34,6 +39,9 @@ sys_knife(void)
 int
 sys_exit(void)
 {
+   //TODO: only wait for clones sharing address space
+   while (wait() != -1);
+
   exit();
   return 0;  // not reached
 }

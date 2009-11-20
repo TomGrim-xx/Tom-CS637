@@ -21,7 +21,7 @@ int dup(int);
 int getpid();
 char* sbrk(int);
 int sleep(int);
-int knife(void);
+int clone(int (*fn)(void*), void* child_stack);
 
 // ulib.c
 int stat(char*, struct stat*);
