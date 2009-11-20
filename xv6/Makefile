@@ -91,6 +91,13 @@ _forktest: forktest.o $(ULIB)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o _forktest forktest.o ulib.o usys.o
 	$(OBJDUMP) -S _forktest > forktest.asm
 
+_kniftest: kniftest.o $(ULIB)
+	# forktest has less library code linked in - needs to be small
+	# in order to be able to max out the proc table.
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o _kniftest kniftest.o ulib.o usys.o
+	$(OBJDUMP) -S _kniftest > kniftest.asm
+
+
 mkfs: mkfs.c fs.h
 	gcc $(CFLAGS) -Wall -o mkfs mkfs.c
 
@@ -109,6 +116,7 @@ UPROGS=\
 	_usertests\
 	_wc\
 	_zombie\
+	_kniftest\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
