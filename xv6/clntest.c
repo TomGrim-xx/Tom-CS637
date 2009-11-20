@@ -17,6 +17,8 @@ function() {
    printf(1, "hello threads!\n");
    print_numbers();
    one=10;
+   printf(1, "one is now 10\n");
+   print_numbers();
 }
 
 
@@ -32,10 +34,13 @@ main(int argc, char *argv[])
       exit();
    }
 
+   printf(1, "child_stack=%x\n", child_stack);
+
    printf(1, "clone process\n");
-   int child = clone(function(), child_stack);
+   int child = clone(function, child_stack);
    if (child == 0) {
-      printf(1, "fail\n");
+      printf(1, "in child!\n");
+      function();
       exit();
    }
 
@@ -43,5 +48,10 @@ main(int argc, char *argv[])
    print_numbers();
 
    printf(1, "child is %d\n", child);
+
+   wait();
+
+   print_numbers();
+
    exit();
 }

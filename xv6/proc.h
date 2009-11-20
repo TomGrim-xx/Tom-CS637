@@ -31,6 +31,7 @@ struct proc {
   char *mem;                // Start of process memory (kernel address)
   uint sz;                  // Size of process memory (bytes)
   char *kstack;             // Bottom of kernel stack for this process
+  uint stack;              // start of userstack
   enum proc_state state;    // Process state
   int pid;                  // Process ID
   struct proc *parent;      // Parent process

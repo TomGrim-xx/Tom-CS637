@@ -15,6 +15,7 @@ exec(char *path, char **argv)
   struct elfhdr elf;
   struct inode *ip;
   struct proghdr ph;
+  uint stackoff;
 
   if((ip = namei(path)) == 0)
     return -1;
@@ -72,6 +73,7 @@ exec(char *path, char **argv)
   
   // Initialize stack.
   sp = sz;
+  stackoff = sp;
   argp = sz - arglen - 4*(argc+1);
 
   // Copy argv strings and pointers to stack.
@@ -104,6 +106,7 @@ exec(char *path, char **argv)
   cp->sz = sz;
   cp->tf->eip = elf.entry;  // main
   cp->tf->esp = sp;
+  cp->stack = stackoff;
   setupsegs(cp);
   return 0;
 
