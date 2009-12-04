@@ -201,6 +201,7 @@ copyproc(struct proc *p)
 struct proc*
 clone(struct proc *p, int (*fn)(void*), void *child_stack)
 {
+   cprintf("cloning proc\n" );
   int i;
   struct proc *np;
 
@@ -232,12 +233,13 @@ clone(struct proc *p, int (*fn)(void*), void *child_stack)
     */
     np->mem = p->mem;
 
-    //no
-    //np->kstack = child_stack;
+    //copy stack
+    void* stackstart = p->mem + p->stack - PAGE;
+    cprintf("mem=%x stack=%x sz:%x \n", p->mem, p->stack, p->sz);
+    cprintf("memmove %x %x %x\n", child_stack, stackstart, PAGE);
 
-    void* stack = p->mem + p->sz - PAGE;
-    memmove(child_stack, stack, PAGE);
-
+    memmove(child_stack, stackstart, PAGE);
+    np->stack = (uint)(child_stack + PAGE) - (uint)np->mem;
 
     for(i = 0; i < NOFILE; i++)
       if(p->ofile[i])
@@ -245,10 +247,15 @@ clone(struct proc *p, int (*fn)(void*), void *child_stack)
     np->cwd = idup(p->cwd);
   }
 
+
   // Set up new context to start executing at forkret (see below).
   memset(&np->context, 0, sizeof(np->context));
   np->context.eip = (uint)forkret;
   np->context.esp = (uint)np->tf;
+  np->tf->esp = p->tf->esp + (np->stack - p->stack);
+
+  cprintf("esp old:%x new:%x \n", p->tf->esp, np->tf->esp);
+  //panic("oh no");
 
   // Clear %eax so that fork system call returns 0 in child.
   np->tf->eax = 0;

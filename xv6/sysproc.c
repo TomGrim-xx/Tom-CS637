@@ -20,13 +20,20 @@ sys_fork(void)
 int
 sys_clone(void)
 {
+   cprintf("sys_clone\n");
   int pid;
   struct proc *np;
 
   void * child_stack;
   int (*fn)(void*);
-  argptr(1, (char**)&fn, 0);
+  argptr(0, (char**)&fn, 0);
   argptr(1, (char**)&child_stack, PAGE);
+
+  int i=0;
+  argint(1, &i);
+  child_stack = cp->mem + i;
+
+  cprintf("mem=%x, arg=%x child_stack=%x\n",cp->mem, i, child_stack);
 
   if((np = clone(cp, fn, child_stack)) == 0)
     return -1;
