@@ -35,6 +35,7 @@ allocproc(void)
     p = &proc[i];
     if(p->state == UNUSED){
       p->state = EMBRYO;
+      p->dontrun = 0;
       p->pid = nextpid++;
       release(&proc_table_lock);
       return p;
@@ -49,17 +50,65 @@ allocproc(void)
 int
 growproc(int n)
 {
+  //cprintf("Growing a thread\n");
   char *newmem;
+  int i = 0;
+  int runningcount = 0;
 
+  struct proc *p;
+  acquire(&proc_table_lock);
+  //mark every process that is sleeping/runnable/whatever as paused - won't be scheduled
+  for (i = 0; i < NPROC; i++)
+  {
+     p = &proc[i];
+     if (p->pid != cp->pid)
+     if (p->mem == cp->mem)
+     {
+       p->dontrun = 1;
+     }     
+  }
+  release(&proc_table_lock);
+  cprintf("Stuff is flagged as unrunnable\n");
+  do
+  {
+    runningcount = 0;
+    for (i = 0; i < NPROC; i++)
+    {
+       p = &proc[i];
+       if (p->pid != cp->pid)  
+       if (p->mem == cp->mem)
+       {
+         if (p->state == RUNNING) runningcount++;
+       }
+    }
+  } while (runningcount > 0);
+  
+  
   newmem = kalloc(cp->sz + n);
   if(newmem == 0)
     return -1;
   memmove(newmem, cp->mem, cp->sz);
   memset(newmem + cp->sz, 0, n);
+  acquire(&proc_table_lock);
+  for (i = 0; i < NPROC; i++)
+  {
+     p = &proc[i];
+     if (p->pid != cp->pid)
+     if (p->mem == cp->mem) //Thread sharing our memory.
+     {
+       p->mem = newmem;
+       p->sz += n;
+       setupsegs(p);
+       p->dontrun = 0;      
+     }
+  }
+  release(&proc_table_lock);
+
   kfree(cp->mem, cp->sz);
   cp->mem = newmem;
   cp->sz += n;
   setupsegs(cp);
+  
   return cp->sz - n;
 }
 
@@ -274,7 +323,7 @@ scheduler(void)
     acquire(&proc_table_lock);
     for(i = 0; i < NPROC; i++){
       p = &proc[i];
-      if(p->state != RUNNABLE)
+      if((p->state != RUNNABLE) || (p->dontrun != 0))
         continue;
 
       // Switch to chosen process.  It is the process's job

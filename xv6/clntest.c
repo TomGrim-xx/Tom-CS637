@@ -4,6 +4,7 @@
 
 #define PAGE 4096
 
+
 int one=1, two=2, three=3, four=4, five=5;
 
 int
@@ -24,7 +25,7 @@ int
 main(int argc, char *argv[])
 {
    print_numbers();
-
+   
    printf(1, "allocate stack space\n");
    void* child_stack = malloc(PAGE);
    if (child_stack == 0) {
