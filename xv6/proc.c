@@ -50,7 +50,7 @@ allocproc(void)
 int
 growproc(int n)
 {
-  //cprintf("Growing a thread\n");
+  cprintf("Growing process %d with amount %d\n", cp->pid, n);
   char *newmem;
   int i = 0;
   int runningcount = 0;
@@ -534,7 +534,8 @@ wait(void)
       if(p->parent == cp){
         if(p->state == ZOMBIE){
           // Found one.
-          kfree(p->mem, p->sz);
+          if(cp->mem != p->mem)
+            kfree(p->mem, p->sz);
           kfree(p->kstack, KSTACKSIZE);
           pid = p->pid;
           p->state = UNUSED;

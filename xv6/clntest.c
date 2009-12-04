@@ -41,6 +41,12 @@ main(int argc, char *argv[])
    int child = clone(function, child_stack);
    if (child == 0) {
       printf(1, "in child!\n");
+      void* child2_stack = malloc(9*PAGE);
+      int child2 = clone(function, child2_stack);
+      if(child2 == 0)
+      {
+        print_numbers();
+      };
       function();
       exit();
    }
