@@ -24,6 +24,7 @@ OBJS = \
 	trapasm.o\
 	trap.o\
 	vectors.o\
+	memory.o\
 
 
 # Cross-compiling (e.g., on Mac OS X)

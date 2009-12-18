@@ -26,6 +26,7 @@ main(void)
   pic_init();      // interrupt controller
   ioapic_init();   // another interrupt controller
   kinit();         // physical memory allocator
+  meminit();
   tvinit();        // trap vectors
   fileinit();      // file table
   iinit();         // inode cache
