@@ -51,6 +51,12 @@ int
 growproc(int n)
 {
   char *newmem;
+  if (cp->page_dir != BAD_PAGE_DIR)
+  { 
+    cp->sz += n;
+    setupsegs(cp);
+    return cp->sz - n;
+  }
 
   newmem = kalloc(cp->sz + n);
   if(newmem == 0)

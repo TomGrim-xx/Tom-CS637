@@ -106,6 +106,7 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
+void            setuppages(struct proc*);
 
 // swtch.S
 void            swtch(struct context*, struct context*);

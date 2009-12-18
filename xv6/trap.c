@@ -6,6 +6,7 @@
 #include "x86.h"
 #include "traps.h"
 #include "spinlock.h"
+#include "memory.h"
 
 // Interrupt descriptor table (shared by all CPUs).
 struct gatedesc idt[256];
@@ -44,11 +45,34 @@ trap(struct trapframe *tf)
     return;
   }
   if(tf->trapno ==  T_PGFLT){
-    uint bad_page =   get_fault_addr(); 
-    cprintf("Page fault with bad page: %d\n", bad_page);
+    uint bad_address = get_fault_addr();
+    cprintf("Page fault with bad address: %d\n", bad_address);
+    if ((cp->page_dir != BAD_PAGE_DIR) && (bad_address < (USER_MEM_START+ cp->sz)))
+    {
+      uint directory = bad_address >> 22;
+      uint table_index = bad_address >> 12;
+      table_index = table_index & 0x3FF;
+      if (cp->page_dir->page_tables[directory].present != 1)
+      {
+         //alloc a page table.
+         panic("page dir is full!\n");         
+  
+      };
+      uint table_addr = cp->page_dir->page_tables[directory].page_table_ptr << 12;
+      struct page_table *table = (struct page_table*) table_addr;
+      if (table->page[table_index].present == 1) panic("bad page fault!\n");
+      //alloc a page.
+      
+      int *new_page = kalloc(PAGE);
+      
+      table->page[table_index].physical_page_addr = (uint)new_page >> 20;
+      table->page[table_index].present = 1;
+      table->page[table_index].readwenable = 1;
+      table->page[table_index].user = 1;
+    }
     cprintf("Error code: %d\n", tf->err);
     
-    panic("page fault!\n");
+    //panic("page fault!\n");
     //page_fault_handler();
     return;
   }

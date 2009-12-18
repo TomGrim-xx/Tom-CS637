@@ -10,6 +10,11 @@
 #include "param.h"
 #include "spinlock.h"
 
+#include "mmu.h"
+#include "x86.h"
+#include "proc.h"
+
+
 struct spinlock kalloc_lock;
 
 struct run {
@@ -89,6 +94,7 @@ kfree(char *v, int len)
 char*
 kalloc(int n)
 {
+  setuppages(0);
   char *p;
   struct run *r, **rp;
 
@@ -112,5 +118,6 @@ kalloc(int n)
   release(&kalloc_lock);
 
   cprintf("kalloc: out of memory\n");
+  setuppages(cp);
   return 0;
 }
