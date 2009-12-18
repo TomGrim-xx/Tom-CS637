@@ -5,6 +5,7 @@
 #include "defs.h"
 #include "x86.h"
 #include "elf.h"
+#include "memory.h"
 
 int
 exec(char *path, char **argv)
@@ -177,22 +178,25 @@ exec_page(char *path, char **argv)
 
   // this should fill the page table with 1-1 virtual to physical addresses
   // up to 4 MB (1024 pages)
+  
   uint page_dir_index = 0;
 
-  page_dir->page_tables[page_dir_index].present = 1;
-  page_dir->page_tables[page_dir_index].readwenable = 1;
-  page_dir->page_tables[page_dir_index].user = 1;
+  page_dir->page_tables[0].present = 1;
+  page_dir->page_tables[0].readwenable = 1;
+  page_dir->page_tables[0].user = 1;
+  page_dir->page_tables[0].page_table_ptr = (uint)kernel_memory >> 12;
 
+  /*
   struct page_table * ptable = (struct page_table *) kalloc(PAGE);
   for (i=0; i<1024; i++) {
     ptable->pages[i].physical_page_addr = (page_dir_index << 10) + i;
     //cprintf("page addr %d \n", ptable->pages[i].physical_page_addr);
     ptable->pages[i].present = 1;
     ptable->pages[i].readwenable = 1;
-    ptable->pages[i].user = 1;
+    ptable->pages[i].user = 0;
   }
+*/
 
-  page_dir->page_tables[page_dir_index].page_table_ptr = (uint)ptable >> 12;
 
 
   // Load program into memory.
