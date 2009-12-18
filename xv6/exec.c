@@ -104,6 +104,7 @@ exec(char *path, char **argv)
   cp->sz = sz;
   cp->tf->eip = elf.entry;  // main
   cp->tf->esp = sp;
+  cp->page_dir = BAD_PAGE_DIR;
   setupsegs(cp);
   return 0;
 

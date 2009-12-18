@@ -154,3 +154,43 @@ struct gatedesc {
   (gate).off_31_16 = (uint) (off) >> 16;                  \
 }
 
+struct page_directory_entry{
+  uint present : 1;     // The page table is present in memory
+  uint readwenable : 1;// 1 if can write to this
+  uint user: 1;        // 1 if all can use this. 0 if only supervisor
+  uint writethrough: 1;// 1 = write-through, 0 = write-back
+  uint disable : 1;    // 1 = cache disable (TLB?)
+  uint accessed :1 ;    // 1 = accessed
+  uint reserved_6: 1;  //
+  uint size : 1;       // 1 = 4MB, 0 = 4k
+  uint g : 1;          // ignored
+  uint reserved_9_11 : 3;       // Reserved
+  uint page_table_ptr : 20;     // This number changes if using 4MB pages.
+};
+
+struct page_table_entry{
+  uint present : 1;     // The page table is present in memory
+  uint readwenable : 1;// 1 if can write to this
+  uint user: 1;        // 1 if all can use this. 0 if only supervisor
+  uint writethrough: 1;// 1 = write-through, 0 = write-back
+  uint disable : 1;    // 1 = cache disable (TLB?)
+  uint accessed :1 ;    // 1 = accessed
+  uint dirty: 1;  //
+  uint reserved_7 : 1;       // 1 = 4MB, 0 = 4k
+  uint global : 1;          // 
+  uint reserved_9_11 : 3;       // Reserved
+  uint physical_page_addr : 20;     // 0  
+};
+
+//must be 4KB aligned.
+struct page_directory{
+  struct page_directory_entry page_tables[1024];
+};
+
+struct page_table{
+  struct page_table_entry pages[1024];
+};
+
+#define BAD_PAGE_DIR 0
+
+  

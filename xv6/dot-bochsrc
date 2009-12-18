@@ -17,7 +17,7 @@
 # the "wx" display library.
 #=======================================================================
 #config_interface: textconfig
-#config_interface: wx
+config_interface: wx
 
 #=======================================================================
 # DISPLAY_LIBRARY
@@ -59,7 +59,7 @@
 #display_library: sdl, options="fullscreen" # startup in fullscreen mode
 #display_library: term
 #display_library: win32, options="legacyF12" # use F12 to toggle mouse
-#display_library: wx
+display_library: wx
 #display_library: x
 
 #=======================================================================
@@ -107,7 +107,7 @@ romimage: file=$BXSHARE/BIOS-bochs-latest
 #  650Mhz Athlon K-7 with Linux 2.4.4/egcs-2.91.66  2 to  2.5 Mips
 #  400Mhz Pentium II with Linux 2.0.36/egcs-1.0.3   1 to  1.8 Mips
 #=======================================================================
-cpu: count=2, ips=10000000
+cpu: count=1, ips=10000000
 
 #=======================================================================
 # MEGS
@@ -674,7 +674,7 @@ keyboard_mapping: enabled=0, map=
 # Example:
 #   i440fxsupport: enabled=1, slot1=pcivga, slot2=ne2k
 #=======================================================================
-#i440fxsupport: enabled=1
+i440fxsupport: enabled=0
 
 #=======================================================================
 # USB1:

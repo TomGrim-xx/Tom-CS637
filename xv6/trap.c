@@ -43,6 +43,11 @@ trap(struct trapframe *tf)
       exit();
     return;
   }
+  if(tf->trapno ==  T_PGFLT){
+    cprintf("Page Fault!\n");
+    //page_fault_handler();
+    return;
+  }
 
   switch(tf->trapno){
   case IRQ_OFFSET + IRQ_TIMER:

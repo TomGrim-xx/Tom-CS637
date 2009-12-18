@@ -41,6 +41,7 @@ struct proc {
   struct context context;   // Switch here to run process
   struct trapframe *tf;     // Trap frame for current interrupt
   char name[16];            // Process name (debugging)
+  struct page_directory  *page_dir; //Local page directory
 };
 
 // Process memory is laid out contiguously, low addresses first:
