@@ -5,6 +5,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "memory.h"
 
 struct spinlock proc_table_lock;
 
@@ -84,8 +85,16 @@ setupsegs(struct proc *p)
   c->gdt[SEG_TSS] = SEG16(STS_T32A, (uint)&c->ts, sizeof(c->ts)-1, 0);
   c->gdt[SEG_TSS].s = 0;
   if(p){
-    c->gdt[SEG_UCODE] = SEG(STA_X|STA_R, (uint)p->mem, p->sz-1, DPL_USER);
-    c->gdt[SEG_UDATA] = SEG(STA_W, (uint)p->mem, p->sz-1, DPL_USER);
+    if (p->page_dir != BAD_PAGE_DIR)
+    {
+      c->gdt[SEG_UCODE] = SEG(STA_X|STA_R, USER_MEM_START, p->sz-1, DPL_USER);
+      c->gdt[SEG_UDATA] = SEG(STA_W, USER_MEM_START, p->sz-1, DPL_USER);
+    }
+    else
+    {
+      c->gdt[SEG_UCODE] = SEG(STA_X|STA_R, (uint)p->mem, p->sz-1, DPL_USER);
+      c->gdt[SEG_UDATA] = SEG(STA_W, (uint)p->mem, p->sz-1, DPL_USER);
+    }
   } else {
     c->gdt[SEG_UCODE] = SEG_NULL;
     c->gdt[SEG_UDATA] = SEG_NULL;

@@ -19,10 +19,10 @@ meminit() {
 
    int i;
    for (i=0; i<kernel_memory_size; i++) {
-      kernel_memory->pages[i].physical_page_addr = (page_dir_index << 10) + i;
+      kernel_memory->page[i].physical_page_addr = (page_dir_index << 10) + i;
       //cprintf("page addr %d \n", ptable->pages[i].physical_page_addr);
-      kernel_memory->pages[i].present = 1;
-      kernel_memory->pages[i].readwenable = 1;
-      kernel_memory->pages[i].user = 0;
+      kernel_memory->page[i].present = 1;
+      kernel_memory->page[i].readwenable = 1;
+      kernel_memory->page[i].user = 0;
    }
 }

@@ -147,6 +147,15 @@ disable_paging() {
 
 }
 
+static inline uint
+get_fault_addr() {
+   uint addr;
+   asm volatile ( "movl %0, %%cr2;"
+                  : "=r"(addr)             /* output */
+                  );
+  return addr;
+}
+
 // Layout of the trap frame built on the stack by the
 // hardware and by trapasm.S, and passed to trap().
 struct trapframe {

@@ -188,7 +188,7 @@ struct page_directory{
 };
 
 struct page_table{
-  struct page_table_entry pages[1024];
+  struct page_table_entry page[1024];
 };
 
 #define BAD_PAGE_DIR 0

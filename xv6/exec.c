@@ -122,6 +122,7 @@ exec_page(char *path, char **argv)
 {
   char *mem, *s, *last;
   struct page_directory *page_dir;
+  struct page_table *page_tab;
   int i, argc, arglen, len, off;
   uint sz, sp, argp;
   struct elfhdr elf;
@@ -185,7 +186,7 @@ exec_page(char *path, char **argv)
   page_dir->page_tables[0].readwenable = 1;
   page_dir->page_tables[0].user = 1;
   page_dir->page_tables[0].page_table_ptr = (uint)kernel_memory >> 12;
-
+  cprintf("Kernel page table: %d\n", page_dir->page_tables[0].page_table_ptr);
   /*
   struct page_table * ptable = (struct page_table *) kalloc(PAGE);
   for (i=0; i<1024; i++) {
@@ -244,17 +245,39 @@ exec_page(char *path, char **argv)
   // Commit to the new image.
   kfree(cp->mem, cp->sz);
   cp->mem = mem;
+  page_tab =(struct page_table*)kalloc(PAGE);
+  for (i = 0; i < 1024; i++)
+  {
+    if (i < (sz / PAGE))
+    {
+      page_tab->page[i].present = 1;
+      page_tab->page[i].readwenable = 1;
+      page_tab->page[i].user = 1;
+      page_tab->page[i].physical_page_addr = ((uint)mem + (i * PAGE)) >> 12;
+      cprintf("Page Address = %d\n", mem);
+      cprintf("Page # = %d\n", page_tab->page[i].physical_page_addr);
+    }
+    else page_tab->page[i].present = 0;
+  }
+
+  page_dir->page_tables[1].page_table_ptr = (uint) page_tab >> 12;
+  
+
   cp->sz = sz;
   cp->tf->eip = elf.entry;  // main
   cp->tf->esp = sp;
   cp->page_dir = page_dir;
-  setupsegs(cp);
-  setuppages(cp);
+  //setupsegs(cp);
+ // setuppages(cp);
   return 0;
 
  bad:
   if(mem)
     kfree(mem, sz);
+  if(page_dir)
+    kfree(page_dir, PAGE);
+  if(page_tab)
+    kfree(page_tab, PAGE);
   iunlockput(ip);
   return -1;
 
