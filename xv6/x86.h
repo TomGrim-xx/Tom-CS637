@@ -135,6 +135,18 @@ enable_paging(volatile void *addr) {
 
 }
 
+static inline void
+disable_paging() {
+   asm volatile ( "movl %%cr0, %%eax;"
+                  "andl $0x7FFFFFFF, %%eax;"
+                  "movl %%eax, %%cr0;"
+                  :              /* output */
+                  :              /* input */
+                  : "%eax"       /* clobbered register */
+                  );
+
+}
+
 // Layout of the trap frame built on the stack by the
 // hardware and by trapasm.S, and passed to trap().
 struct trapframe {
