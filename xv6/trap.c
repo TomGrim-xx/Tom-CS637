@@ -44,6 +44,7 @@ trap(struct trapframe *tf)
     return;
   }
   if(tf->trapno ==  T_PGFLT){
+     panic("page fault!\n");
     cprintf("Page Fault!\n");
     //page_fault_handler();
     return;

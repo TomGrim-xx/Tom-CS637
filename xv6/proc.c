@@ -96,6 +96,17 @@ setupsegs(struct proc *p)
   popcli();
 }
 
+void
+setuppages(struct proc * p) {
+   if (p == 0 || p->page_dir == 0) {
+      disable_paging();
+      cprintf("paging disabled!\n");
+   } else {
+      enable_paging(p->page_dir);
+      cprintf("paging enabled!\n");
+   }
+}
+
 // Create a new process copying p as the parent.
 // Sets up stack to return as if from system call.
 // Caller must set state of returned proc to RUNNABLE.
@@ -222,6 +233,7 @@ scheduler(void)
       // before jumping back to us.
       c->curproc = p;
       setupsegs(p);
+      setuppages(p);
       p->state = RUNNING;
       //enable_paging(0);
       swtch(&c->context, &p->context);
@@ -229,6 +241,7 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->curproc = 0;
+      setuppages(0);
       setupsegs(0);
     }
     release(&proc_table_lock);

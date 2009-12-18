@@ -174,6 +174,27 @@ exec_page(char *path, char **argv)
      page_dir->page_tables[i].present = 0;
   };
 
+
+  // this should fill the page table with 1-1 virtual to physical addresses
+  // up to 4 MB (1024 pages)
+  uint page_dir_index = 0;
+
+  page_dir->page_tables[page_dir_index].present = 1;
+  page_dir->page_tables[page_dir_index].readwenable = 1;
+  page_dir->page_tables[page_dir_index].user = 1;
+
+  struct page_table * ptable = (struct page_table *) kalloc(PAGE);
+  for (i=0; i<1024; i++) {
+    ptable->pages[i].physical_page_addr = (page_dir_index << 10) + i;
+    //cprintf("page addr %d \n", ptable->pages[i].physical_page_addr);
+    ptable->pages[i].present = 1;
+    ptable->pages[i].readwenable = 1;
+    ptable->pages[i].user = 1;
+  }
+
+  page_dir->page_tables[page_dir_index].page_table_ptr = (uint)ptable >> 12;
+
+
   // Load program into memory.
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
     if(readi(ip, (char*)&ph, off, sizeof(ph)) != sizeof(ph))
@@ -224,7 +245,7 @@ exec_page(char *path, char **argv)
   cp->tf->esp = sp;
   cp->page_dir = page_dir;
   setupsegs(cp);
-  enable_paging(page_dir);
+  setuppages(cp);
   return 0;
 
  bad:
