@@ -107,6 +107,7 @@ exec(char *path, char **argv)
   cp->tf->esp = sp;
   cp->page_dir = BAD_PAGE_DIR;
   setupsegs(cp);
+  setuppages(cp);
   return 0;
 
  bad:
@@ -186,6 +187,7 @@ exec_page(char *path, char **argv)
   page_dir->page_tables[0].readwenable = 1;
   page_dir->page_tables[0].user = 1;
   page_dir->page_tables[0].page_table_ptr = (uint)kernel_memory >> 12;
+  cprintf("Kernel memory table addr: %d \n", kernel_memory);
   cprintf("Kernel page table: %d\n", page_dir->page_tables[0].page_table_ptr);
   /*
   struct page_table * ptable = (struct page_table *) kalloc(PAGE);
@@ -254,21 +256,25 @@ exec_page(char *path, char **argv)
       page_tab->page[i].readwenable = 1;
       page_tab->page[i].user = 1;
       page_tab->page[i].physical_page_addr = ((uint)mem + (i * PAGE)) >> 12;
-      cprintf("Page Address = %d\n", mem);
-      cprintf("Page # = %d\n", page_tab->page[i].physical_page_addr);
+      //cprintf("Page Address = %d\n", mem);
+     // cprintf("Page # = %d\n", page_tab->page[i].physical_page_addr);
     }
     else page_tab->page[i].present = 0;
   }
 
+  //cprintf("Page Address = %d\n", mem);
   page_dir->page_tables[1].page_table_ptr = (uint) page_tab >> 12;
+  page_dir->page_tables[1].present = 1;
+  page_dir->page_tables[1].readwenable = 1;
+  page_dir->page_tables[1].user = 1;
   
 
   cp->sz = sz;
   cp->tf->eip = elf.entry;  // main
   cp->tf->esp = sp;
   cp->page_dir = page_dir;
-  //setupsegs(cp);
- // setuppages(cp);
+  setupsegs(cp);
+  setuppages(cp);
   return 0;
 
  bad:

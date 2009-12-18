@@ -109,10 +109,10 @@ void
 setuppages(struct proc * p) {
    if (p == 0 || p->page_dir == 0) {
       disable_paging();
-      cprintf("paging disabled!\n");
+     // cprintf("paging disabled!\n");
    } else {
       enable_paging(p->page_dir);
-      cprintf("paging enabled!\n");
+     // cprintf("paging enabled!\n");
    }
 }
 
@@ -443,11 +443,16 @@ wait(void)
           // Found one.
           kfree(p->mem, p->sz);
           kfree(p->kstack, KSTACKSIZE);
+          if (p->page_dir != BAD_PAGE_DIR)
+            free_page_dir(p->page_dir);
+
+          p->page_dir = BAD_PAGE_DIR;
           pid = p->pid;
           p->state = UNUSED;
           p->pid = 0;
           p->parent = 0;
           p->name[0] = 0;
+  
           release(&proc_table_lock);
           return pid;
         }
@@ -487,13 +492,13 @@ procdump(void)
   
   for(i = 0; i < NPROC; i++){
     p = &proc[i];
-    if(p->state == UNUSED)
-      continue;
+   // if(p->state == UNUSED)
+    //  continue;
     if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %s %s", p->pid, state, p->name);
+    cprintf("%d %s %s %d", p->pid, state, p->name, p->page_dir);
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context.ebp+2, pc);
       for(j=0; j<10 && pc[j] != 0; j++)

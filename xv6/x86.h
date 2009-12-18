@@ -150,10 +150,19 @@ disable_paging() {
 static inline uint
 get_fault_addr() {
    uint addr;
-   asm volatile ( "movl %0, %%cr2;"
+   asm volatile ( "movl %%cr2, %0;"
                   : "=r"(addr)             /* output */
                   );
   return addr;
+}
+
+static inline uint
+get_error_code(){
+   uint error = 0;
+   asm volatile ( "popl %0;"
+                  : "=r"(error)             /* output */
+                  );
+  return error;
 }
 
 // Layout of the trap frame built on the stack by the

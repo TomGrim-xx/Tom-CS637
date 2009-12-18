@@ -44,8 +44,9 @@ trap(struct trapframe *tf)
     return;
   }
   if(tf->trapno ==  T_PGFLT){
-    uint bad_page =   get_fault_addr();
-    cprintf("Page fault with bad page: %d\n", bad_page); 
+    uint bad_page =   get_fault_addr(); 
+    cprintf("Page fault with bad page: %d\n", bad_page);
+    cprintf("Error code: %d\n", tf->err);
     
     panic("page fault!\n");
     //page_fault_handler();
