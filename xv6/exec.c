@@ -224,6 +224,7 @@ exec_page(char *path, char **argv)
   cp->tf->esp = sp;
   cp->page_dir = page_dir;
   setupsegs(cp);
+  enable_paging(page_dir);
   return 0;
 
  bad:

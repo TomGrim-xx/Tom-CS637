@@ -223,6 +223,7 @@ scheduler(void)
       c->curproc = p;
       setupsegs(p);
       p->state = RUNNING;
+      //enable_paging(0);
       swtch(&c->context, &p->context);
 
       // Process is done running for now.

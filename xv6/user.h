@@ -10,6 +10,7 @@ int read(int, void*, int);
 int close(int);
 int kill(int);
 int exec(char*, char**);
+int exec_page(char*, char**);
 int open(char*, int);
 int mknod(char*, short, short);
 int unlink(char*);

@@ -121,6 +121,20 @@ sti(void)
   asm volatile("sti");
 }
 
+static inline void
+enable_paging(volatile void *addr) {
+   asm volatile ( "movl %0, %%eax;"
+                  "movl %%eax, %%cr3;"
+                  "movl %%cr0, %%eax;"
+                  "orl $0x80000000, %%eax;"
+                  "movl %%eax, %%cr0;"
+                  :              /* output */
+                  : "r" (addr)       /* input */
+                  : "%eax"      /* clobbered register */
+                  );
+
+}
+
 // Layout of the trap frame built on the stack by the
 // hardware and by trapasm.S, and passed to trap().
 struct trapframe {
