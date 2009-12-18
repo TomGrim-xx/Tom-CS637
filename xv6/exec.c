@@ -120,6 +120,7 @@ int
 exec_page(char *path, char **argv)
 {
   char *mem, *s, *last;
+  struct page_directory *page_dir;
   int i, argc, arglen, len, off;
   uint sz, sp, argp;
   struct elfhdr elf;
@@ -165,6 +166,13 @@ exec_page(char *path, char **argv)
   if(mem == 0)
     goto bad;
   memset(mem, 0, sz);
+
+  //allocate page dir entry.
+  page_dir = (struct page_directory*) kalloc(PAGE); 
+  for (i = 0; i < 1024; i++)
+  {     
+     page_dir->page_tables[i].present = 0;
+  };
 
   // Load program into memory.
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
@@ -214,7 +222,7 @@ exec_page(char *path, char **argv)
   cp->sz = sz;
   cp->tf->eip = elf.entry;  // main
   cp->tf->esp = sp;
-  cp->page_dir = BAD_PAGE_DIR;
+  cp->page_dir = page_dir;
   setupsegs(cp);
   return 0;
 
