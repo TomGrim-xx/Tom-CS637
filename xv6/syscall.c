@@ -96,6 +96,7 @@ extern int sys_sleep(void);
 extern int sys_unlink(void);
 extern int sys_wait(void);
 extern int sys_write(void);
+extern int sys_exec_page(void);
 
 static int (*syscalls[])(void) = {
 [SYS_chdir]   sys_chdir,
@@ -111,6 +112,7 @@ static int (*syscalls[])(void) = {
 [SYS_mkdir]   sys_mkdir,
 [SYS_mknod]   sys_mknod,
 [SYS_open]    sys_open,
+[SYS_exec_page]    sys_exec_page,
 [SYS_pipe]    sys_pipe,
 [SYS_read]    sys_read,
 [SYS_sbrk]    sys_sbrk,
@@ -118,6 +120,7 @@ static int (*syscalls[])(void) = {
 [SYS_unlink]  sys_unlink,
 [SYS_wait]    sys_wait,
 [SYS_write]   sys_write,
+
 };
 
 void

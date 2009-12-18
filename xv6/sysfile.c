@@ -370,6 +370,31 @@ sys_exec(void)
 }
 
 int
+sys_exec_page(void)
+{
+  char *path, *argv[20];
+  int i;
+  uint uargv, uarg;
+
+  if(argstr(0, &path) < 0 || argint(1, (int*)&uargv) < 0)
+    return -1;
+  memset(argv, 0, sizeof(argv));
+  for(i=0;; i++){
+    if(i >= NELEM(argv))
+      return -1;
+    if(fetchint(cp, uargv+4*i, (int*)&uarg) < 0)
+      return -1;
+    if(uarg == 0){
+      argv[i] = 0;
+      break;
+    }
+    if(fetchstr(cp, uarg, &argv[i]) < 0)
+      return -1;
+  }
+  return exec_page(path, argv);
+}
+
+int
 sys_pipe(void)
 {
   int *fd;

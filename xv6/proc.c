@@ -164,6 +164,7 @@ userinit(void)
   p->tf->ss = p->tf->ds;
   p->tf->eflags = FL_IF;
   p->tf->esp = p->sz;
+  p->page_dir = BAD_PAGE_DIR;
   
   // Make return address readable; needed for some gcc.
   p->tf->esp -= 4;

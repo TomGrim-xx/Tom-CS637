@@ -21,6 +21,7 @@ void            panic(char*) __attribute__((noreturn));
 
 // exec.c
 int             exec(char*, char**);
+int             exec_page(char*, char**);
 
 // file.c
 struct file*    filealloc(void);
